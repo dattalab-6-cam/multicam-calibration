@@ -437,7 +437,7 @@ def estimate_all_extrinsics(all_calib_poses, root=0):
     for c1,c2 in spanning_tree:
         transform = estimate_pairwise_camera_transform(all_calib_poses[c1], all_calib_poses[c2])
         all_extrinsics[c2] = get_transformation_matrix(transform) @ all_extrinsics[c1]
-    all_extrinsics = list(map(get_transformation_vector, all_extrinsics))
+    all_extrinsics = np.array(list(map(get_transformation_vector, all_extrinsics)))
     return all_extrinsics
 
 def consensus_calib_poses(all_calib_poses, all_extrinsics):
@@ -465,8 +465,6 @@ def consensus_calib_poses(all_calib_poses, all_extrinsics):
         Consensus calibration object pose in each frame. Frames with no calibration
         detections in any camera are set to NaN.
     """
-    n_cameras, n_frames = all_calib_poses.shape[:2]
-
     all_calib_poses_world_coords = np.zeros_like(all_calib_poses)*np.nan
     for i,(poses,transform) in enumerate(zip(all_calib_poses, all_extrinsics)):
         calib_detected = ~np.isnan(poses).any(axis=-1)
