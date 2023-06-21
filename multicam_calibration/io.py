@@ -1,11 +1,12 @@
 import cv2, os, json
 import numpy as np
+import h5py
 
 from .geometry import get_transformation_matrix, rodrigues_inv
 
 
-def save_calibration(all_extrinsics, all_intrinsics, save_path, 
-                     camera_names, save_format='json'):
+def save_calibration(all_extrinsics, all_intrinsics, camera_names,
+                     save_path, save_format='json'):
     """
     Save calibration results.
 
@@ -20,6 +21,9 @@ def save_calibration(all_extrinsics, all_intrinsics, save_path,
     - `jarvis`: Directory with one file per camera in OpenCV-specific YAML format.
       The rotation and camera matrices are transposed relative to the JSON format.
 
+    - `gimbal`: Single HDF5 file with a `camera_parameters` group containing
+        `camera_names`, `dist_coefs`, `intrinsics`, `rotation`, and `translation`.
+
     Parameters
     ----------
     all_extrinsics : array of shape (n_cameras, 6)
@@ -31,12 +35,12 @@ def save_calibration(all_extrinsics, all_intrinsics, save_path,
         Intrinsic parameters for each camera (see 
         :py:func:`multicam_calibration.get_intrinsics`).
 
+    camera_names : list of str
+        Names of the cameras. Must be the same length as `all_extrinsics`
+
     save_path : str
         Path to save calibration. Interpreted as a file if `format=="json"`
         and as a directory if `format=="jarvis"`. 
-
-    camera_names : list of str
-        Names of the cameras. Must be the same length as `all_extrinsics`
 
     save_format : str, default='json'
         Format to save calibration. See above for options.
@@ -44,7 +48,7 @@ def save_calibration(all_extrinsics, all_intrinsics, save_path,
     assert len(all_extrinsics) == len(all_intrinsics) == len(camera_names), \
         "Number of camera names must match number of extrinsics and intrinsics"
     
-    transforms = get_transformation_matrix(all_extrinsics)
+    transforms = get_transformation_matrix(np.array(all_extrinsics))
     
     if save_format == 'json':
         calibration_data = {}
@@ -69,11 +73,23 @@ def save_calibration(all_extrinsics, all_intrinsics, save_path,
             fs.write("T", transforms[i,:3,3:])
             fs.release()
 
+    elif save_format=='gimbal':
+        camera_matrix = np.stack([intrinsics[0] for intrinsics in all_intrinsics])
+        dist_coefs = np.stack([intrinsics[1] for intrinsics in all_intrinsics])
+        if not save_path.endswith('.h5'): save_path += '.h5'
+        with h5py.File(save_path, 'w') as h5:
+            grp = h5.create_group('camera_parameters')
+            grp.create_dataset('dist_coefs',   data = dist_coefs)
+            grp.create_dataset('intrinsics',   data = camera_matrix)
+            grp.create_dataset('rotation',     data = transforms[:,:3,:3])
+            grp.create_dataset('translation',  data = transforms[:,:3,3])
+            grp.create_dataset('camera_names', data = camera_names)
+
     else:
         raise ValueError(f"Unknown format {save_format}")
     
 
-def load_calibration(load_path, camera_names=None, load_format='json'):
+def load_calibration(load_path, load_format='json', camera_names=None):
     """
     Load calibration results.
 
@@ -87,6 +103,9 @@ def load_calibration(load_path, camera_names=None, load_format='json'):
 
     - `jarvis`: Directory with one file per camera in OpenCV-specific YAML format. 
         The rotation and camera matrices are transposed relative to the JSON format. 
+
+    - `gimbal`: Single HDF5 file with a `camera_parameters` group containing
+        `camera_names`, `dist_coefs`, `intrinsics`, `rotation`, and `translation`.
 
     Parameters
     ----------
@@ -125,8 +144,8 @@ def load_calibration(load_path, camera_names=None, load_format='json'):
         all_extrinsics,all_intrinsics = [],[]
         for camera_name in camera_names:
             all_extrinsics.append(np.concatenate([
-                rodrigues_inv(calibration_data[camera_name]['rotation']),
-                np.array(calibration_data[camera_name]['translation'])]))
+                rodrigues_inv(np.array(calibration_data[camera_name]['rotation'])),
+                np.array(calibration_data[camera_name]['translation']).squeeze()]))
             all_intrinsics.append((
                 np.array(calibration_data[camera_name]['camera_matrix']),
                 np.array(calibration_data[camera_name]['distortion_coefs'])))
@@ -153,6 +172,28 @@ def load_calibration(load_path, camera_names=None, load_format='json'):
                 fs.getNode("intrinsicMatrix").mat().T,
                 fs.getNode("distortionCoefficients").mat().squeeze()))
         return all_extrinsics, all_intrinsics, camera_names
+    
+    elif load_format == 'gimbal':
+        if not load_path.endswith('.h5'): load_path += '.h5'
+        with h5py.File(load_path, 'r') as h5:
+            grp = h5['camera_parameters']
+            h5_names = grp['camera_names'][()].tolist()
+            all_intrinsics = list(zip(
+                grp['intrinsics'][()], 
+                grp['dist_coefs'][()]))
+            all_extrinsics = np.concatenate([
+                rodrigues_inv(grp['rotation'][()]),
+                grp['translation'][()]], axis=1)
+
+            if camera_names is None:
+                camera_names = h5_names
+            else:
+                assert set(camera_names) <= set(h5_names), \
+                    "Camera names must be a subset of names in calibration file"
+                ix = np.array([h5_names.index(name) for name in camera_names])
+                all_extrinsics = all_extrinsics[ix]
+                all_intrinsics = [all_intrinsics[i] for i in ix]
+            return all_extrinsics, all_intrinsics, camera_names
 
     else:
         raise ValueError(f"Unknown format {load_format}")
