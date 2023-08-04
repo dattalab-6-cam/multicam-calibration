@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+
 na = np.newaxis
 
 
@@ -13,8 +14,8 @@ def detect_uvs(image, board_shape):
         Image to detect the chessboard in.
 
     board_shape : tuple (rows,columns)
-        Shape of the chessboard (number of squares in each dimension), 
-        e.g. the following board would have shape (3,5)::
+        Shape of the chessboard (number of squares in each dimension), e.g. the
+        following board would have shape (3,5)::
 
             ██░░██░░██
             ░░██░░██░░
@@ -23,8 +24,8 @@ def detect_uvs(image, board_shape):
     Returns
     -------
     uvs: array of shape (N,2) or None
-        Either the coordinates of the interior points of the chessboard
-        or None if no chessboard was detected.
+        Either the coordinates of the interior points of the chessboard or None
+        if no chessboard was detected.
     """
     pass
 
@@ -81,7 +82,9 @@ def generate_objpoints(chess_board_shape, chess_board_square_size):
     objpoints : array of shape (N,3)
         Coordinates of the chessboard points.
     """
-    rows,cols = chess_board_shape
-    objpoints = np.zeros((rows*cols,3), np.float32)
-    objpoints[:,:2] = np.mgrid[0:rows,0:cols].T.reshape(-1,2)*chess_board_square_size
+    rows, cols = chess_board_shape
+    objpoints = np.zeros((rows * cols, 3), np.float32)
+    objpoints[:, :2] = (
+        np.mgrid[0:rows, 0:cols].T.reshape(-1, 2) * chess_board_square_size
+    )
     return objpoints

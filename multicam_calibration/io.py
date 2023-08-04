@@ -22,7 +22,7 @@ def save_calibration(all_extrinsics, all_intrinsics, camera_names,
       The rotation and camera matrices are transposed relative to the JSON format.
 
     - `gimbal`: Single HDF5 file with a `camera_parameters` group containing
-        `camera_names`, `dist_coefs`, `intrinsics`, `rotation`, and `translation`.
+        `camera_names`, `dist_coefs`, `intrinsic`, `rotation`, and `translation`.
 
     Parameters
     ----------
@@ -80,7 +80,7 @@ def save_calibration(all_extrinsics, all_intrinsics, camera_names,
         with h5py.File(save_path, 'w') as h5:
             grp = h5.create_group('camera_parameters')
             grp.create_dataset('dist_coefs',   data = dist_coefs)
-            grp.create_dataset('intrinsics',   data = camera_matrix)
+            grp.create_dataset('intrinsic',   data = camera_matrix)
             grp.create_dataset('rotation',     data = transforms[:,:3,:3])
             grp.create_dataset('translation',  data = transforms[:,:3,3])
             grp.create_dataset('camera_names', data = camera_names)
@@ -105,7 +105,7 @@ def load_calibration(load_path, load_format='json', camera_names=None):
         The rotation and camera matrices are transposed relative to the JSON format. 
 
     - `gimbal`: Single HDF5 file with a `camera_parameters` group containing
-        `camera_names`, `dist_coefs`, `intrinsics`, `rotation`, and `translation`.
+        `camera_names`, `dist_coefs`, `intrinsic`, `rotation`, and `translation`.
 
     Parameters
     ----------
@@ -179,7 +179,7 @@ def load_calibration(load_path, load_format='json', camera_names=None):
             grp = h5['camera_parameters']
             h5_names = grp['camera_names'][()].tolist()
             all_intrinsics = list(zip(
-                grp['intrinsics'][()], 
+                grp['intrinsic'][()], 
                 grp['dist_coefs'][()]))
             all_extrinsics = np.concatenate([
                 rodrigues_inv(grp['rotation'][()]),
