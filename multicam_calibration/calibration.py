@@ -8,29 +8,6 @@ from .geometry import *
 na = np.newaxis
 
 
-def embed_calib_objpoints(calib_objpoints, calib_poses):
-    """
-    Embed calibration object points into the world coordinate system.
-
-    Parameters
-    ----------
-    calib_objpoints : array of shape (N, 3)
-        3D coordinates of the calibration points in a canonical reference frame.
-
-    calib_poses : array of shape (n_frames, 6)
-        Poses of the calibration object in world coordinates.
-
-    Returns
-    -------
-    calib_worldpoints : array of shape (n_frames, N, 3)
-        Calibration object points in world coordinates.
-    """
-    pose_transforms = get_transformation_matrix(calib_poses)[:, na]
-    objpoints = euclidean_to_homogenous(calib_objpoints)[na, :, :, na]
-    calib_worldpoints = (pose_transforms @ objpoints)[..., :3, 0]
-    return calib_worldpoints
-
-
 def get_intrinsics(
     calib_uvs,
     calib_objpoints,
@@ -54,7 +31,7 @@ def get_intrinsics(
     image_size : tuple (width, height)
         Size of the images in pixels.
 
-    n_samples : int, default=50
+    n_samples : int, default=100
         Number of samples to use for calibration.
 
     fix_k3 : bool, default=True
