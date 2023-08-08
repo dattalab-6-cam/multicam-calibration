@@ -1,6 +1,5 @@
 # docs/requirements.txt
 sphinx==4.4.0
 sphinx-rtd-theme
-keypoint_moseq
 autodocsumm
 myst-nb

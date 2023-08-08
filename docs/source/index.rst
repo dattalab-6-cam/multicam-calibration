@@ -4,9 +4,9 @@ Multi-Camera Calibration
 .. toctree::
    :maxdepth: 2
    :hidden:
-   :caption: Installation
+   :caption: Setup
 
-   install
+   setup
 
 .. include:: install.rst
 
@@ -18,7 +18,4 @@ Multi-Camera Calibration
 .. toctree::
    :caption: API Documentation
 
-   calib_objects
-   geometry
-   viz
-   bundle_adjustment
+   api

@@ -7,7 +7,6 @@ import tqdm
 import h5py
 import cv2
 import os
-import cv2
 
 na = np.newaxis
 
