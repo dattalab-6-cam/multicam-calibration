@@ -189,7 +189,7 @@ def get_camera_spanning_tree(all_calib_poses, root=0):
     for i in range(n_cameras):
         for j in range(i + 1, n_cameras):
             n_common_frames = (
-                calib_detected[:, i] & calib_detected[:, j]
+                calib_detected[i, :] & calib_detected[j, :]
             ).sum()
             edges.append((i, j, n_common_frames))
 

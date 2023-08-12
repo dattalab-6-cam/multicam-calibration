@@ -3,6 +3,7 @@ from multiprocessing import Queue, Process
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import tqdm
 import h5py
 import cv2
@@ -207,10 +208,6 @@ def run_calibration_detection(
             all_img_sizes.append(h5["img_size"][:])
             all_frame_ixs.append(h5["frame_ixs"][:])
 
-    print("Number of detections per video:")
-    for vp, uvs in zip(video_paths, all_uvs):
-        print(f"  {vp}: {len(uvs)}")
-
     assert np.all(
         [len(uvs) > 0 for uvs in all_uvs]
     ), "At least one video has no detections"
@@ -226,6 +223,28 @@ def run_calibration_detection(
         all_calib_uvs[i, aligned_frame_ixs[:, i].searchsorted(frame_ixs)] = uvs
 
     return all_calib_uvs, all_img_sizes
+
+
+def summarize_detections(all_calib_uvs):
+    """
+    Print the number of detections shared between each pair of cameras.
+
+    Parameters
+    ----------
+    all_calib_uvs : array of shape (n_cameras, n_frames, N, 2)
+        Synchronized calibration detections each camera. NaNs are used when no
+        detection was made or the frame was dropped.
+
+    Returns
+    -------
+    table : pandas.DataFrame
+        Table of the number of shared detections between each pair of cameras.
+    """
+    has_detection = ~np.isnan(all_calib_uvs).any(axis=(2, 3))
+    n_shared = (has_detection[:, None, :] & has_detection[None, :, :]).sum(2)
+    names = [f"Camera {i}" for i in range(len(all_calib_uvs))]
+    table = pd.DataFrame(n_shared, index=names, columns=names)
+    return table
 
 
 # -----------------------------------------------------------------------------#
