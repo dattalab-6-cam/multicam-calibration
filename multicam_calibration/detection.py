@@ -509,3 +509,68 @@ def generate_chessboard_objpoints(chess_board_shape, chess_board_square_size):
         np.mgrid[0:rows, 0:cols].T.reshape(-1, 2) * chess_board_square_size
     )
     return objpoints
+
+
+def plot_chessboard_qc_data(video_paths, figsize=(12, 6)):
+    """
+    Plot the match scores that were used to reorder chessboard points in a set
+    of videos.
+
+    The top row contains heatmaps with sorted match scores from each frame. The
+    bottom row contain scatter plots that compare the best and second-best
+    match score on each frame (lines are offset from the diagonal at intervals
+    of 0.1, and may be useful for selecting `match_score_min_diff` when running
+    :py:func:`multicam_calibration.detect_chessboard`).
+
+    Parameters
+    ----------
+    video_paths : list of str
+        Paths to the videos to process. Each video should have a corresponding
+        .detections.h5 file that contains a `qc_data` dataset.
+
+    figsize : tuple (width,height), default=(12,6)
+        Size of the figure.
+
+    Returns
+    -------
+    fig : matplotlib Figure
+        Figure containing the heatmaps.
+    """
+    qc_datas = []
+    for video_path in video_paths:
+        detections_path = os.path.splitext(video_path)[0] + ".detections.h5"
+        assert os.path.exists(detections_path), (
+            f"Could not find {detections_path}. "
+            "Run `run_calibration_detection` first."
+        )
+        with h5py.File(detections_path, "r") as h5:
+            qc_datas.append(h5["qc_data"][:])
+
+    fig, axs = plt.subplots(
+        3,
+        len(qc_datas),
+        figsize=figsize,
+        gridspec_kw={"height_ratios": [1, 0.05, 0.4]},
+    )
+
+    for i, qc_data in enumerate(qc_datas):
+        cax = axs[0, i].imshow(qc_data, aspect="auto", interpolation="nearest")
+
+        axs[0, i].set_ylabel("Frame")
+        axs[0, i].set_xlabel("match score")
+        axs[0, i].set_title(os.path.basename(video_paths[i]), fontsize=10)
+        plt.colorbar(cax, cax=axs[1, i], orientation="horizontal")
+
+        axs[2, i].scatter(qc_data[:, 0], qc_data[:, 1], s=1, linewidth=0)
+        axs[2, i].set_xlabel("best")
+        axs[2, i].set_ylabel("second-best")
+        axs[2, i].set_aspect("equal")
+        axs[2, i].axline((0, 0), slope=1, c="k")
+        axs[2, i].set_xlim([0, 1])
+        axs[2, i].set_ylim([0, 1])
+
+        for offset in np.arange(0.1, 1, 0.1):
+            axs[2, i].axline((offset, 0), slope=1, c="k", ls="--", lw=0.5)
+
+    plt.tight_layout()
+    return fig
