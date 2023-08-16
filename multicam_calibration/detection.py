@@ -289,6 +289,7 @@ def detect_chessboard(
     image,
     *,
     board_shape=(7, 10),
+    reorder=True,
     subpix_winSize=(5, 5),
     scale_factor=1,
     adaptive_threshold=True,
@@ -316,6 +317,9 @@ def detect_chessboard(
     board_shape : tuple (rows,columns)
         Number of squares in each dimension minus one. For example the board
         shown above would have shape (2,4).
+
+    reorder : bool, default=True
+        Whether to reorder the points using an anchor.
 
     subpix_winSize : tuple (width,height), default=(5,5)
         Size of the window to use for subpixel refinement.
@@ -368,9 +372,10 @@ def detect_chessboard(
             image, corners_approx, subpix_winSize, (-1, -1), criteria
         ).squeeze()
 
-        uvs, match_scores, _ = reorder_chessboard_corners(
-            image, uvs, board_shape
-        )
+        if reorder:
+            uvs, match_scores, _ = reorder_chessboard_corners(
+                image, uvs, board_shape
+            )
         return uvs, match_scores
     else:
         return None
