@@ -409,7 +409,7 @@ def _match_to_template(image, all_source_pts, target_pts, template):
     return match_scores, regions
 
 
-def reorder_chessboard_corners(image, uvs, board_shape):
+def reorder_chessboard_corners(image, uvs, board_shape, template_size=40):
     """
     Reorder chessboard points using an anchor point. See
     py:func:`multicam_calibration.detection.detect_chessboard` for details.
@@ -425,11 +425,17 @@ def reorder_chessboard_corners(image, uvs, board_shape):
     board_shape : tuple (rows,columns)
         Shape of the chessboard (number of squares in each dimension).
 
+    template_size : int, default=40
+        Size of template to generate.
+
     Returns
     -------
     reordered_uvs: array of shape (N,2)
         Reordered coordinates of the chessboard points.
     """
+    if len(image.shape) == 3:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
     uv_grid = uvs.reshape(board_shape[1], board_shape[0], 2)
     ext = extend_grid(uv_grid, 3, 1)
 
