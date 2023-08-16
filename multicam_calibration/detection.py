@@ -140,7 +140,7 @@ def run_calibration_detection(
     detection_fun,
     detection_options={},
     aligned_frame_ixs=None,
-    overwrite_saved=False,
+    overwrite=False,
     n_workers=1,
 ):
     """
@@ -166,7 +166,7 @@ def run_calibration_detection(
         frames. If `aligned_frame_ixs` is not provided, then the videos are
         assumed to be synchronized from the start and not lack dropped frames.
 
-    overwrite_saved : bool, default=False
+    overwrite : bool, default=False
         If True, ignore any saved detections and re-run the detection function
         for all frames.
 
@@ -193,7 +193,7 @@ def run_calibration_detection(
 
     for i, video_path in enumerate(video_paths):
         save_path = os.path.splitext(video_path)[0] + ".detections.h5"
-        if overwrite_saved or not os.path.exists(save_path):
+        if overwrite or not os.path.exists(save_path):
             print(f"Processing {video_path}")
             process_video(
                 video_path,
@@ -314,8 +314,8 @@ def detect_chessboard(
         Image to detect the chessboard in.
 
     board_shape : tuple (rows,columns)
-        Shape of the chessboard (number of squares in each dimension). For
-        example the board shown above would have shape (3,5).
+        Number of squares in each dimension minus one. For example the board
+        shown above would have shape (2,4).
 
     subpix_winSize : tuple (width,height), default=(5,5)
         Size of the window to use for subpixel refinement.
@@ -368,7 +368,9 @@ def detect_chessboard(
             image, corners_approx, subpix_winSize, (-1, -1), criteria
         ).squeeze()
 
-        uvs, match_scores = reorder_chessboard_corners(image, uvs, board_shape)
+        uvs, match_scores, _ = reorder_chessboard_corners(
+            image, uvs, board_shape
+        )
         return uvs, match_scores
     else:
         return None
@@ -381,14 +383,25 @@ def _generate_chessboard_anchor_template(size):
     return template
 
 
-def _match_to_template(image, source_pts, target_pts, template):
-    """Compute correlation between a template and a region of an image."""
+def _extract_region(image, source_pts, target_pts, template):
+    """Extract a region of an image that will be matched to a template."""
     M = cv2.getPerspectiveTransform(source_pts, target_pts)
     warped_image = cv2.warpPerspective(image, M, template.shape[:2][::-1])
-    if np.std(warped_image.ravel()) > 0:
-        return np.corrcoef(warped_image.ravel(), template.ravel())[0, 1]
-    else:
-        return 0
+    return warped_image
+
+
+def _match_to_template(image, all_source_pts, target_pts, template):
+    """Compute correlation between a template and a region of an image."""
+    match_scores, regions = [], []
+    for source_pts in all_source_pts:
+        region = _extract_region(image, source_pts, target_pts, template)
+        if np.std(region) > 0:
+            match_score = np.corrcoef(region, template.ravel())[0, 1]
+        else:
+            match_score = 0
+        match_scores.append(match_score)
+        regions.append(region)
+    return match_scores, regions
 
 
 def reorder_chessboard_corners(image, uvs, board_shape):
@@ -425,10 +438,9 @@ def reorder_chessboard_corners(image, uvs, board_shape):
     s = 40  # size of anchor template
     template = _generate_chessboard_anchor_template(s)
     target_pts = np.float32([[0, s], [0, 0], [s, 0], [s, s]])
-    match_scores = [
-        _match_to_template(image, source_pts, target_pts, template)
-        for source_pts in all_source_pts
-    ]
+    match_scores, regions = _match_to_template(
+        image, all_source_pts, target_pts, template
+    )
 
     # Reorder points so best match is in top-left corner
     if np.argmax(match_scores) in [2, 3]:  # best match is in bottom row
@@ -437,7 +449,7 @@ def reorder_chessboard_corners(image, uvs, board_shape):
         uv_grid = uv_grid[:, ::-1]
 
     uvs_reordered = uv_grid.reshape(-1, 2)
-    return uvs_reordered, np.sort(match_scores)[::-1]
+    return uvs_reordered, np.sort(match_scores)[::-1], regions
 
 
 def generate_chessboard_objpoints(chess_board_shape, chess_board_square_size):
