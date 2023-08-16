@@ -373,7 +373,7 @@ def detect_chessboard(
         ).squeeze()
 
         if reorder:
-            uvs, match_scores, _ = reorder_chessboard_corners(
+            uvs, match_scores,_ = reorder_chessboard_corners(
                 image, uvs, board_shape
             )
         else:
@@ -404,7 +404,7 @@ def _match_to_template(image, all_source_pts, target_pts, template):
     for source_pts in all_source_pts:
         region = _extract_region(image, source_pts, target_pts, template)
         if np.std(region) > 0:
-            match_score = np.corrcoef(region, template.ravel())[0, 1]
+            match_score = np.corrcoef(region.ravel(), template.ravel())[0, 1]
         else:
             match_score = 0
         match_scores.append(match_score)
@@ -463,7 +463,9 @@ def reorder_chessboard_corners(image, uvs, board_shape, template_size=40):
         uv_grid = uv_grid[:, ::-1]
 
     uvs_reordered = uv_grid.reshape(-1, 2)
-    return uvs_reordered, np.sort(match_scores)[::-1], regions
+    sorted_match_scores = np.sort(match_scores)[::-1]
+    vis_info = (all_source_pts, regions, template, match_scores)
+    return uvs_reordered, sorted_match_scores, vis_info
 
 
 def generate_chessboard_objpoints(chess_board_shape, chess_board_square_size):
