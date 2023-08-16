@@ -376,6 +376,9 @@ def detect_chessboard(
             uvs, match_scores, _ = reorder_chessboard_corners(
                 image, uvs, board_shape
             )
+        else:
+            match_scores = None
+
         return uvs, match_scores
     else:
         return None
