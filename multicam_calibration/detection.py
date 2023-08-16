@@ -277,16 +277,16 @@ def extend_grid(uv_grid, extend_rows, extend_cols):
     """
     rows = uv_grid.shape[0] + 2 * extend_rows
     cols = uv_grid.shape[1] + 2 * extend_cols
-    
+
     xy_grid_full = np.mgrid[0:cols, 0:rows].T
     xy_grid = xy_grid_full[extend_rows:-extend_rows, extend_cols:-extend_cols]
-    
+
     H, _ = cv2.findHomography(xy_grid.reshape(-1, 2), uv_grid.reshape(-1, 2))
-    
+
     extended_uv_grid = homogeneous_to_euclidean(
         euclidean_to_homogenous(xy_grid_full.reshape(-1, 2)) @ H.T
     ).reshape(xy_grid_full.shape)
-    
+
     return extended_uv_grid
 
 
@@ -294,11 +294,12 @@ def detect_chessboard(
     image,
     *,
     board_shape=(7, 10),
-    reorder=True,
     subpix_winSize=(5, 5),
     scale_factor=1,
     adaptive_threshold=True,
     normalize_image=True,
+    reorder=True,
+    match_score_min_diff=0.2,
 ):
     """
     Detect corners of a chessboard and order them using a anchor point.
@@ -323,9 +324,6 @@ def detect_chessboard(
         Number of squares in each dimension minus one. For example the board
         shown above would have shape (2,4).
 
-    reorder : bool, default=True
-        Whether to reorder the points using an anchor.
-
     subpix_winSize : tuple (width,height), default=(5,5)
         Size of the window to use for subpixel refinement.
 
@@ -342,6 +340,15 @@ def detect_chessboard(
         Whether to use the flat `CALIB_CB_NORMALIZE_IMAGE` when applying
         `findChessboardCorners` in OpenCV.
 
+    reorder : bool, default=True
+        Whether to reorder the points using an anchor.
+
+    match_score_min_diff : float, default=0.2
+        Minimum difference between the best and second-best match score. If the
+        difference is less than this, then the anchor point is ambiguous and
+        the detection is rejected.
+
+
     Returns
     -------
     uvs: array of shape (N,2) or None
@@ -349,7 +356,7 @@ def detect_chessboard(
 
     match_scores : array of shape (4,)
         Sorted template-matching correlations for the four possible anchor
-        points locations.
+        points locations. Only returned if `reorder=True`.
     """
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
     flags = (
@@ -378,13 +385,15 @@ def detect_chessboard(
         ).squeeze()
 
         if reorder:
-            uvs, match_scores,_ = reorder_chessboard_corners(
-                image, uvs, board_shape
+            uvs, match_scores, _ = reorder_chessboard_corners(
+                image, uvs, board_shape, **reorder_options
             )
+            if match_scores[0] - match_scores[1] < match_score_min_diff:
+                return None
+            else:
+                return uvs, match_scores
         else:
-            match_scores = None
-
-        return uvs, match_scores
+            return uvs
     else:
         return None
 
