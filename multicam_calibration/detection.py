@@ -9,6 +9,8 @@ import h5py
 import cv2
 import os
 
+from .geometry import euclidean_to_homogenous, homogeneous_to_euclidean
+
 # -----------------------------------------------------------------------------#
 #               General calibration object detection utilities                #
 # -----------------------------------------------------------------------------#
@@ -254,7 +256,8 @@ def summarize_detections(all_calib_uvs):
 
 def extend_grid(uv_grid, extend_rows, extend_cols):
     """
-    Extend a grid of (u,v) coordinates by extrapolation.
+    Given (u,v) coordinates from a chessboard detection in an image, simulate
+    the coordinates of an enlarged chessboard using a homography transform.
 
     Parameters
     ----------
@@ -272,17 +275,19 @@ def extend_grid(uv_grid, extend_rows, extend_cols):
     extended_uv_grid : array of shape (rows+2*extend_rows,cols+2*extend_cols,2)
         Extended grid of (u,v) coordinates.
     """
-    rows, cols, _ = uv_grid.shape
-
-    uv_grid = interp1d(
-        np.arange(rows), uv_grid, axis=0, fill_value="extrapolate"
-    )(np.arange(-extend_rows, rows + extend_rows))
-
-    uv_grid = interp1d(
-        np.arange(cols), uv_grid, axis=1, fill_value="extrapolate"
-    )(np.arange(-extend_cols, cols + extend_cols))
-
-    return uv_grid
+    rows = uv_grid.shape[0] + 2 * extend_rows
+    cols = uv_grid.shape[1] + 2 * extend_cols
+    
+    xy_grid_full = np.mgrid[0:cols, 0:rows].T
+    xy_grid = xy_grid_full[extend_rows:-extend_rows, extend_cols:-extend_cols]
+    
+    H, _ = cv2.findHomography(xy_grid.reshape(-1, 2), uv_grid.reshape(-1, 2))
+    
+    extended_uv_grid = homogeneous_to_euclidean(
+        euclidean_to_homogenous(xy_grid_full.reshape(-1, 2)) @ H.T
+    ).reshape(xy_grid_full.shape)
+    
+    return extended_uv_grid
 
 
 def detect_chessboard(
