@@ -386,7 +386,7 @@ def detect_chessboard(
 
         if reorder:
             uvs, match_scores, _ = reorder_chessboard_corners(
-                image, uvs, board_shape, **reorder_options
+                image, uvs, board_shape, 
             )
             if match_scores[0] - match_scores[1] < match_score_min_diff:
                 return None
