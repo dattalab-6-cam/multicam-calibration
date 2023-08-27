@@ -230,6 +230,84 @@ def undistort_points(uvs, camera_matrix, dist_coefs):
     valid_ixs = ~np.isnan(uvs).any(-1)
     uvs_undistorted = np.zeros_like(uvs) * np.nan
     uvs_undistorted[valid_ixs] = cv2.undistortPoints(
-        uvs[valid_ixs], camera_matrix, dist_coefs
+        uvs[valid_ixs], camera_matrix, dist_coefs, None, camera_matrix
     ).squeeze(1)
     return uvs_undistorted.reshape(uvs_shape)
+
+
+def triangulate(all_uvs, all_extrinsics, all_intrinsics):
+    """
+    Triangulate 3D points from 2D correspondences.
+
+    This function performs robust triangulation by returning the median from
+    all pairs of cameras that observe a given point.
+
+    Parameters
+    ----------
+    all_uvs : list of arrays of shape (n_points, 2)
+        2D coordinates of points in the image plane of each camera. Missing
+        points should be represented by NaNs.
+
+    all_extrinsics : all_extrinsics : list of arrays of shape (6,)
+        Transforms from world to camera coordinates for each camera. The first
+        three elements specify a rotation in axis-angle form and the last three
+        elements specify a translation.
+
+    all_intrinsics : list of tuples (camera_matrix, dist_coefs)
+        Camera intrinsics for each camera (see
+        :py:func:`multicam_calibration.get_intrinsics`).
+
+    Returns
+    -------
+    robust_points : array of shape (n_points, 3)
+        Triangulated 3D points. NaNs indicate points that could not be
+        triangulated (because they were observed by fewer than two cameras).
+    """
+    n_cameras = len(all_extrinsics)
+    n_points = all_uvs[0].shape[0]
+
+    # Undistort points
+    all_undistorted_uvs = []
+    for uvs, (camera_matrix, dist_coefs) in zip(all_uvs, all_intrinsics):
+        all_undistorted_uvs.append(
+            undistort_points(uvs, camera_matrix, dist_coefs)
+        )
+
+    # Get projection matrices
+    Ps = []
+    for extrinsics, (camera_matrix, _) in zip(all_extrinsics, all_intrinsics):
+        T = get_transformation_matrix(extrinsics)
+        P = np.matmul(camera_matrix, T[:3])
+        Ps.append(P)
+
+    # Triangulate points from all pairs of cameras
+    pairwise_points = []
+    for i in range(n_cameras):
+        for j in range(i + 1, n_cameras):
+            points = np.zeros((n_points, 3)) * np.nan
+            observed = ~np.any(
+                [
+                    np.isnan(all_undistorted_uvs[i]).any(-1),
+                    np.isnan(all_undistorted_uvs[j]).any(-1),
+                ],
+                axis=0,
+            )
+            if np.any(observed):
+                points_hom = cv2.triangulatePoints(
+                    Ps[i],
+                    Ps[j],
+                    all_undistorted_uvs[i][observed].T,
+                    all_undistorted_uvs[j][observed].T,
+                ).T
+                points[observed] = homogeneous_to_euclidean(points_hom)
+            pairwise_points.append(points)
+    pairwise_points = np.stack(pairwise_points, axis=0)
+
+    # Take median of all triangulations
+    robust_points = []
+    for i in range(n_points):
+        if np.isnan(pairwise_points[:, i]).all():
+            robust_points.append(np.nan)
+        else:
+            robust_points.append(np.nanmedian(pairwise_points[:, i], axis=0))
+    return np.stack(robust_points, axis=0)
