@@ -158,7 +158,7 @@ def homogeneous_to_euclidean(x_homogenous):
     return x_euclidean
 
 
-def project_points(points, extrinsics, camera_matrix, dist_coefs):
+def project_points(points, extrinsics, camera_matrix, dist_coefs=None):
     """
     Project 3D points onto the image plane.
 
@@ -175,8 +175,9 @@ def project_points(points, extrinsics, camera_matrix, dist_coefs):
     camera_matrix : array of shape (3, 3)
         The camera matrix.
 
-    dist_coefs : 1d array of length at least 2
-        The radial distortion coefficients k1, k2.
+    dist_coefs : 1d array of length at least 2, optional
+        The radial distortion coefficients k1, k2. If None, no distortion is
+        applied.
 
     Returns
     -------
@@ -189,18 +190,22 @@ def project_points(points, extrinsics, camera_matrix, dist_coefs):
     points_cam = np.matmul(T, points[..., na])[..., :3, 0]
 
     # Apply radial distortion
-    k1, k2 = dist_coefs[:2]
-    r2 = np.sum((points_cam[..., :2] / points_cam[..., 2:]) ** 2, axis=-1)
-    radial_distortion = 1 + k1 * r2 + k2 * r2**2
+    if dist_coefs is not None:
+        k1, k2 = dist_coefs[:2]
+        r2 = np.sum((points_cam[..., :2] / points_cam[..., 2:]) ** 2, axis=-1)
+        radial_distortion = 1 + k1 * r2 + k2 * r2**2
 
-    # Distorted points in camera coordinate system
-    points_cam_distorted = points_cam * np.stack(
-        (radial_distortion, radial_distortion, np.ones(points_cam.shape[:-1])),
-        axis=-1,
-    )
+        points_cam = points_cam * np.stack(
+            (
+                radial_distortion,
+                radial_distortion,
+                np.ones(points_cam.shape[:-1]),
+            ),
+            axis=-1,
+        )
 
     # Project points to the image plane
-    uvs = np.matmul(camera_matrix, points_cam_distorted[..., na]).squeeze(-1)
+    uvs = np.matmul(camera_matrix, points_cam[..., na]).squeeze(-1)
     uvs = uvs[..., :2] / uvs[..., 2:]
     return uvs
 

@@ -159,33 +159,24 @@ def plot_residuals(
     pts = embed_calib_objpoints(calib_objpoints, calib_poses)
 
     for cam in tqdm.trange(n_cameras):
-        T = get_transformation_matrix(all_extrinsics[cam])
-        points_cam = np.matmul(T, euclidean_to_homogenous(pts)[..., na])[
-            ..., :3, 0
-        ]
-        reprojections[cam] = points_cam[..., :2] / points_cam[..., 2:]
+        reprojections[cam] = project_points(
+            pts, all_extrinsics[cam], all_intrinsics[cam][0]
+        )
         uvs_undistorted = undistort_points(
             all_calib_uvs[cam], *all_intrinsics[cam]
         )
-
         valid_ixs = np.nonzero(~np.isnan(uvs_undistorted).any((-1, -2)))[0]
         for t in valid_ixs:
-            H = cv2.findHomography(uvs_undistorted[t], calib_objpoints[:, :2])[
-                0
-            ]
+            H = cv2.findHomography(uvs_undistorted[t], calib_objpoints[:, :2])
             transformed_reprojections[cam, t] = cv2.perspectiveTransform(
-                reprojections[cam, t][na], H
+                reprojections[cam, t][na], H[0]
             )[0]
 
-        median_error[cam] = np.median(
-            np.sqrt(
-                (
-                    transformed_reprojections[cam, valid_ixs]
-                    - calib_objpoints[:, :2]
-                )
-                ** 2
-            ).sum(-1)
+        errors = np.linalg.norm(
+            transformed_reprojections[cam, valid_ixs] - calib_objpoints[:, :2],
+            axis=-1,
         )
+        median_error[cam] = np.median(errors)
 
     n_rows = int(np.ceil(n_cameras / n_cols))
     fig, axes = plt.subplots(n_rows, n_cols)
