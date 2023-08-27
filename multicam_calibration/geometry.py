@@ -312,7 +312,7 @@ def triangulate(all_uvs, all_extrinsics, all_intrinsics):
     robust_points = []
     for i in range(n_points):
         if np.isnan(pairwise_points[:, i]).all():
-            robust_points.append(np.nan)
+            robust_points.append(np.zeros(3) * np.nan)
         else:
             robust_points.append(np.nanmedian(pairwise_points[:, i], axis=0))
     return np.stack(robust_points, axis=0)
