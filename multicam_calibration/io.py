@@ -215,10 +215,16 @@ def load_calibration(load_path, load_format="json", camera_names=None):
             load_path += ".h5"
         with h5py.File(load_path, "r") as h5:
             grp = h5["camera_parameters"]
-            h5_names = grp["camera_names"][()].tolist()
+
+            h5_names = [
+                name.decode("utf-8")
+                for name in grp["camera_names"][()].tolist()
+            ]
+
             all_intrinsics = list(
                 zip(grp["intrinsic"][()], grp["dist_coefs"][()])
             )
+
             all_extrinsics = np.concatenate(
                 [rodrigues_inv(grp["rotation"][()]), grp["translation"][()]],
                 axis=1,

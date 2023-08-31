@@ -234,10 +234,12 @@ def undistort_points(uvs, camera_matrix, dist_coefs):
     uvs = uvs.reshape(-1, 2)
     valid_ixs = ~np.isnan(uvs).any(-1)
     uvs_undistorted = np.zeros_like(uvs) * np.nan
-    uvs_undistorted[valid_ixs] = cv2.undistortPoints(
-        uvs[valid_ixs], camera_matrix, dist_coefs, None, camera_matrix
-    ).squeeze(1)
-    return uvs_undistorted.reshape(uvs_shape)
+    
+    if valid_ixs.any():
+        uvs_undistorted[valid_ixs] = cv2.undistortPoints(
+            uvs[valid_ixs], camera_matrix, dist_coefs, None, camera_matrix
+        ).squeeze(1)
+        return uvs_undistorted.reshape(uvs_shape)
 
 
 def triangulate(all_uvs, all_extrinsics, all_intrinsics):
