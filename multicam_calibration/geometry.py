@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import tqdm
 
 na = np.newaxis
 
@@ -111,6 +112,38 @@ def get_transformation_vector(T):
     return np.concatenate(
         [rodrigues_inv(T[..., :3, :3]), T[..., :3, 3]], axis=-1
     )
+
+
+def get_projection_matrix(extrinsics, intrinsics):
+    """
+    Generate a projection matrix from camera intrinsics and extrinsics.
+
+    The projection matrix transforms points from world coordinates to image
+    coordinates. It is defined as follows, where K is the camera matrix, R is
+    the rotation matrix, and t is the translation vector.::
+
+        P = K [R | t]
+
+
+    Parameters
+    ----------
+    extrinsics : array of shape (6,)
+        The transformation from the world coordinate system to the camera's
+        coordinate system. The first three elements are the rotation vector and
+        the last three elements are the translation vector.
+
+    intrinsics : tuple (camera_matrix, dist_coefs)
+        Camera intrinsics (see :py:func:`multicam_calibration.get_intrinsics`).
+
+    Returns
+    -------
+    P : array of shape (3, 4)
+        The projection matrix.
+    """
+    camera_matrix, _ = intrinsics
+    T = get_transformation_matrix(extrinsics)
+    P = np.matmul(camera_matrix, T[:3])
+    return P
 
 
 def euclidean_to_homogenous(x_euclidean):
@@ -239,7 +272,7 @@ def undistort_points(uvs, camera_matrix, dist_coefs):
         uvs_undistorted[valid_ixs] = cv2.undistortPoints(
             uvs[valid_ixs], camera_matrix, dist_coefs, None, camera_matrix
         ).squeeze(1)
-    
+
     return uvs_undistorted.reshape(uvs_shape)
 
 
@@ -282,11 +315,10 @@ def triangulate(all_uvs, all_extrinsics, all_intrinsics):
         )
 
     # Get projection matrices
-    Ps = []
-    for extrinsics, (camera_matrix, _) in zip(all_extrinsics, all_intrinsics):
-        T = get_transformation_matrix(extrinsics)
-        P = np.matmul(camera_matrix, T[:3])
-        Ps.append(P)
+    Ps = [
+        get_projection_matrix(extrinsics, intrinsics)
+        for extrinsics, intrinsics in zip(all_extrinsics, all_intrinsics)
+    ]
 
     # Triangulate points from all pairs of cameras
     pairwise_points = []
