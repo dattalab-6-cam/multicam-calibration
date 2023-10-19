@@ -26,9 +26,7 @@ def rodrigues(r):
     A[..., 1, 2] = -r[..., 0]
     A[..., 2, 0] = -r[..., 1]
     A[..., 2, 1] = r[..., 0]
-    theta = np.linalg.norm(r, axis=-1, keepdims=True).reshape(
-        *r.shape[:-1], 1, 1
-    )
+    theta = np.linalg.norm(r, axis=-1, keepdims=True).reshape(*r.shape[:-1], 1, 1)
     A = A / np.where(theta == 0, 1, theta)
     R = np.sin(theta) * A + (1 - np.cos(theta)) * np.matmul(A, A)
     R[..., 0, 0] += 1
@@ -109,9 +107,7 @@ def get_transformation_vector(T):
         rotation in axis-angle form and the last three elements specify a
         translation.
     """
-    return np.concatenate(
-        [rodrigues_inv(T[..., :3, :3]), T[..., :3, 3]], axis=-1
-    )
+    return np.concatenate([rodrigues_inv(T[..., :3, :3]), T[..., :3, 3]], axis=-1)
 
 
 def get_projection_matrix(extrinsics, intrinsics):
@@ -276,7 +272,22 @@ def undistort_points(uvs, camera_matrix, dist_coefs):
     return uvs_undistorted.reshape(uvs_shape)
 
 
-def triangulate(all_uvs, all_extrinsics, all_intrinsics):
+def weighted_median(data, weights):
+    # Sort data
+    sorted_index = np.argsort(data)
+    sorted_data = data[sorted_index]
+    sorted_weights = weights[sorted_index]
+
+    # Compute the cumulative sum of weights
+    cumsum_weights = np.cumsum(sorted_weights)
+
+    # Find the index where the cumulative sum is greater than or equal to half the total sum of weights
+    index = np.where(cumsum_weights >= np.sum(weights) / 2)[0][0]
+
+    return sorted_data[index]
+
+
+def triangulate(all_uvs, all_extrinsics, all_intrinsics, weights=None):
     """
     Triangulate 3D points from 2D correspondences.
 
@@ -298,6 +309,9 @@ def triangulate(all_uvs, all_extrinsics, all_intrinsics):
         Camera intrinsics for each camera (see
         :py:func:`multicam_calibration.get_intrinsics`).
 
+    weights : Array of weights for each camera / point of shape (n_points, n_cameras)
+        Can be, for example, the confidence in a point
+
     Returns
     -------
     robust_points : array of shape (n_points, 3)
@@ -310,9 +324,7 @@ def triangulate(all_uvs, all_extrinsics, all_intrinsics):
     # Undistort points
     all_undistorted_uvs = []
     for uvs, (camera_matrix, dist_coefs) in zip(all_uvs, all_intrinsics):
-        all_undistorted_uvs.append(
-            undistort_points(uvs, camera_matrix, dist_coefs)
-        )
+        all_undistorted_uvs.append(undistort_points(uvs, camera_matrix, dist_coefs))
 
     # Get projection matrices
     Ps = [
@@ -322,6 +334,7 @@ def triangulate(all_uvs, all_extrinsics, all_intrinsics):
 
     # Triangulate points from all pairs of cameras
     pairwise_points = []
+    pairwise_cams = []
     for i in range(n_cameras):
         for j in range(i + 1, n_cameras):
             points = np.zeros((n_points, 3)) * np.nan
@@ -341,13 +354,46 @@ def triangulate(all_uvs, all_extrinsics, all_intrinsics):
                 ).T
                 points[observed] = homogeneous_to_euclidean(points_hom)
             pairwise_points.append(points)
+            pairwise_cams.append([i, j])
     pairwise_points = np.stack(pairwise_points, axis=0)
+    pairwise_cams = np.stack(pairwise_cams)
 
     # Take median of all triangulations
-    robust_points = []
-    for i in range(n_points):
-        if np.isnan(pairwise_points[:, i]).all():
-            robust_points.append(np.zeros(3) * np.nan)
-        else:
-            robust_points.append(np.nanmedian(pairwise_points[:, i], axis=0))
+    if weights is None:
+        robust_points = []
+        for i in range(n_points):
+            if np.isnan(pairwise_points[:, i]).all():
+                robust_points.append(np.zeros(3) * np.nan)
+            else:
+                robust_points.append(np.nanmedian(pairwise_points[:, i], axis=0))
+    else:
+        # take the weighted medium
+        robust_points = []
+        for pt in range(n_points):
+            # which triangulations are valid
+            valid_pt_mask = np.any(np.isnan(pairwise_points[:, pt]), axis=1) == False
+
+            # if none, skip
+            if np.all(valid_pt_mask == False):
+                robust_points.append([np.nan, np.nan, np.nan])
+
+            # weight each pairwise triangulation
+            pt_weights = np.array(
+                [
+                    np.min([weights[cam1, pt], weights[cam2, pt]])
+                    for cam1, cam2 in pairwise_cams
+                ]
+            )
+            pt_weights = pt_weights[valid_pt_mask] / np.sum(pt_weights[valid_pt_mask])
+            valid_pts = pairwise_points[:, pt][valid_pt_mask]
+
+            # weighted median
+            robust_points.append(
+                [
+                    weighted_median(data=valid_pts[:, 0], weights=pt_weights),
+                    weighted_median(data=valid_pts[:, 1], weights=pt_weights),
+                    weighted_median(data=valid_pts[:, 2], weights=pt_weights),
+                ]
+            )
+
     return np.stack(robust_points, axis=0)
