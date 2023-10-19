@@ -376,6 +376,7 @@ def triangulate(all_uvs, all_extrinsics, all_intrinsics, weights=None):
             # if none, skip
             if np.all(valid_pt_mask == False):
                 robust_points.append([np.nan, np.nan, np.nan])
+                continue
 
             # weight each pairwise triangulation
             pt_weights = np.array(
