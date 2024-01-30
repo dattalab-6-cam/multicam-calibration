@@ -124,17 +124,24 @@ def process_video(
 
     if len(detections) == 0:
         raise ValueError("No detections found")
-
+        
+    
     frame_ixs = np.array(sorted(detections.keys()))
-    uvs = np.stack([detections[i][0] for i in frame_ixs])
-    qc_data = np.stack([detections[i][1] for i in frame_ixs])
+    if len(detections[frame_ixs[0]]) == 2:
+        uvs = np.stack([detections[i][0] for i in frame_ixs])
+        qc_data = np.stack([detections[i][1] for i in frame_ixs])
+    else:
+        uvs = np.stack([detections[i] for i in frame_ixs])
+        qc_data = None
 
+        
     save_path = os.path.splitext(video_path)[0] + ".detections.h5"
     with h5py.File(save_path, "w") as h5:
         h5.create_dataset("uvs", data=uvs)
-        h5.create_dataset("qc_data", data=qc_data)
         h5.create_dataset("frame_ixs", data=frame_ixs)
         h5.create_dataset("img_size", data=img_size)
+        if qc_data is not None:
+            h5.create_dataset("qc_data", data=qc_data)
 
 
 def run_calibration_detection(
