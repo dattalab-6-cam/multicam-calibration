@@ -26,9 +26,7 @@ def rodrigues(r):
     A[..., 1, 2] = -r[..., 0]
     A[..., 2, 0] = -r[..., 1]
     A[..., 2, 1] = r[..., 0]
-    theta = np.linalg.norm(r, axis=-1, keepdims=True).reshape(
-        *r.shape[:-1], 1, 1
-    )
+    theta = np.linalg.norm(r, axis=-1, keepdims=True).reshape(*r.shape[:-1], 1, 1)
     A = A / np.where(theta == 0, 1, theta)
     R = np.sin(theta) * A + (1 - np.cos(theta)) * np.matmul(A, A)
     R[..., 0, 0] += 1
@@ -65,6 +63,93 @@ def rodrigues_inv(R):
     rnorm = np.linalg.norm(r, axis=-1, keepdims=True)
     rnorm += rnorm == 0
     return r * theta / rnorm
+
+
+def rigid_transform_from_correspondences(source_points, target_points):
+    """
+    Compute the rigid transform that maps source points to target points.
+
+    Parameters
+    ----------
+    source_points : array of shape (..., 3)
+        Source points.
+
+    target_points : array of shape (..., 3)
+        Target points.
+
+    Returns
+    -------
+    t : array of shape (6,)
+        Rigid transforms in vector format. The first three elements specify a
+        rotation in axis-angle form and the last three elements specify a
+        translation.
+
+    rmsd : float
+        Root mean square deviation between the source and target points after
+        applying the rigid transform.
+    """
+    # Reshape the points
+    source_points = source_points.reshape(-1, 3)
+    target_points = target_points.reshape(-1, 3)
+
+    # Compute the centroids
+    centroid_source = np.mean(source_points, axis=0)
+    centroid_target = np.mean(target_points, axis=0)
+
+    # Center the points around the centroids
+    source_centered = source_points - centroid_source
+    target_centered = target_points - centroid_target
+
+    # Compute the covariance matrix H
+    H = np.dot(source_centered.T, target_centered)
+
+    # Perform Singular Value Decomposition
+    U, S, Vt = np.linalg.svd(H)
+
+    # Compute the rotation matrix
+    R = np.dot(Vt.T, U.T)
+
+    # Handle reflections
+    if np.linalg.det(R) < 0:
+        Vt[-1, :] *= -1
+        R = np.dot(Vt.T, U.T)
+
+    # Compute the translation vector and concatenate with the rotation vector
+    translation = centroid_target - np.dot(R, centroid_source)
+    t = np.concatenate((rodrigues_inv(R), translation))
+
+    # Compute the root mean square deviation
+    source_transformed = np.dot(source_points, R.T) + translation
+    rmsd = np.sqrt(np.mean(np.sum((source_transformed - target_points) ** 2, axis=1)))
+
+    return t, rmsd
+
+
+def apply_rigid_transform(transform, points):
+    """
+    Apply a rigid transform to a set of points.
+
+    Parameters
+    ----------
+    transform : array of shape (6,) or (4,4)
+        Rigid transform in matrix or vector format. In vector format, the first three
+        elements specify a rotation in axis-angle form and the last three elements
+        specify a translation.
+
+    points : array of shape (...,3)
+        Points to transform.
+
+    Returns
+    -------
+    points_transformed : array of shape (...,3)
+        Transformed points.
+    """
+    if transform.shape == (6,):
+        transform = get_transformation_matrix(transform)
+
+    pts = euclidean_to_homogenous(points)
+    points_transformed = np.matmul(transform, pts[..., na])[..., :3, 0]
+    return points_transformed
 
 
 def get_transformation_matrix(t):
@@ -109,9 +194,7 @@ def get_transformation_vector(T):
         rotation in axis-angle form and the last three elements specify a
         translation.
     """
-    return np.concatenate(
-        [rodrigues_inv(T[..., :3, :3]), T[..., :3, 3]], axis=-1
-    )
+    return np.concatenate([rodrigues_inv(T[..., :3, :3]), T[..., :3, 3]], axis=-1)
 
 
 def get_projection_matrix(extrinsics, intrinsics):
@@ -310,9 +393,7 @@ def triangulate(all_uvs, all_extrinsics, all_intrinsics):
     # Undistort points
     all_undistorted_uvs = []
     for uvs, (camera_matrix, dist_coefs) in zip(all_uvs, all_intrinsics):
-        all_undistorted_uvs.append(
-            undistort_points(uvs, camera_matrix, dist_coefs)
-        )
+        all_undistorted_uvs.append(undistort_points(uvs, camera_matrix, dist_coefs))
 
     # Get projection matrices
     Ps = [
