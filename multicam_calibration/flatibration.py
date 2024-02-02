@@ -31,7 +31,7 @@ from .geometry import (
 )
 
 
-def get_floor_points(keypoints, plus_z_is_up=True):
+def get_floor_points(keypoints, z_points_down=False):
     """
     Get the 3D keypoints that correspond to the floor of the recording arena.
 
@@ -41,16 +41,16 @@ def get_floor_points(keypoints, plus_z_is_up=True):
         3D keypoints of the animal(s) in the recording arena. The z-axis should be
         roughly vertical.
 
-    plus_z_is_up : bool
-        True if the z-axis points up, False if the z-axis points down.
+    z_points_down : bool, default=False
+        True if the z-axis points down, False if the z-axis points up.
     """
     if isinstance(keypoints, list):
         keypoints = np.concatenate(keypoints)
 
-    if plus_z_is_up:
-        ix = np.argmin(keypoints[:, :, 2], axis=1)
-    else:
+    if z_points_down:
         ix = np.argmax(keypoints[:, :, 2], axis=1)
+    else:
+        ix = np.argmin(keypoints[:, :, 2], axis=1)
     return keypoints[np.arange(keypoints.shape[0]), ix]
 
 
