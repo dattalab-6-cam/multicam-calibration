@@ -119,7 +119,7 @@ def rigid_transform_from_correspondences(source_points, target_points):
     t = np.concatenate((rodrigues_inv(R), translation))
 
     # Compute the root mean square deviation
-    source_transformed = np.dot(source_points, R.T) + translation
+    source_transformed = apply_rigid_transform(t, source_points)
     rmsd = np.sqrt(np.mean(np.sum((source_transformed - target_points) ** 2, axis=1)))
 
     return t, rmsd
@@ -302,8 +302,7 @@ def project_points(points, extrinsics, camera_matrix, dist_coefs=None):
     """
     # Rotate and translate points
     T = get_transformation_matrix(extrinsics)
-    points = euclidean_to_homogenous(points)
-    points_cam = np.matmul(T, points[..., na])[..., :3, 0]
+    points_cam = apply_rigid_transform(T, points)
 
     # Apply radial distortion
     if dist_coefs is not None:
