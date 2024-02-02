@@ -196,7 +196,7 @@ def plot_residuals(
             f"camera {cam} (median error={median_error[cam]:.2f})", fontsize=10
         )
         axes.flat[cam].set_aspect("equal")
-        set_axis_limits(axes.flat[cam], pts[plot_ixs], pctl=99, pad=0.1)
+        set_axis_limits(axes.flat[cam], pts[plot_ixs], pctl=1, pad=0.1)
         if hide_axes:
             axes.flat[cam].axis("off")
 
@@ -350,16 +350,16 @@ def visualize_flatibration(
 
     # plot untransformed floor points
     axs[0, 0].scatter(*floor_points[:, [0, 2]].T, s=1, label="floor points", zorder=1)
-    set_axis_limits(axs[0, 0], floor_points[:, [0, 2]], pctl=99, pad=0.1)
+    set_axis_limits(axs[0, 0], floor_points[:, [0, 2]], pctl=1, pad=0.1)
     axs[1, 0].scatter(*floor_points[:, [1, 2]].T, s=1, label="floor points", zorder=1)
-    set_axis_limits(axs[1, 0], floor_points[:, [1, 2]], pctl=99, pad=0.1)
+    set_axis_limits(axs[1, 0], floor_points[:, [1, 2]], pctl=1, pad=0.1)
 
     # plot transformed floor points
     floor_points = apply_rigid_transform(transform, floor_points)
     axs[0, 1].scatter(*floor_points[:, [0, 2]].T, s=1, label="floor points", zorder=1)
-    set_axis_limits(axs[0, 1], floor_points[:, [0, 2]], pctl=99, pad=0.1)
+    set_axis_limits(axs[0, 1], floor_points[:, [0, 2]], pctl=1, pad=0.1)
     axs[1, 1].scatter(*floor_points[:, [1, 2]].T, s=1, label="floor points", zorder=1)
-    set_axis_limits(axs[1, 1], floor_points[:, [1, 2]], pctl=99, pad=0.1)
+    set_axis_limits(axs[1, 1], floor_points[:, [1, 2]], pctl=1, pad=0.1)
 
     if keypoints is not None:
         if isinstance(keypoints, list):
@@ -372,16 +372,16 @@ def visualize_flatibration(
 
         # plot untransformed keypoints
         axs[0, 0].scatter(*keypoints[:, [0, 2]].T, s=1, label="keypoints", zorder=0)
-        set_axis_limits(axs[0, 0], keypoints[:, [0, 2]], pctl=99, pad=0.1)
+        set_axis_limits(axs[0, 0], keypoints[:, [0, 2]], pctl=1, pad=0.1)
         axs[1, 0].scatter(*keypoints[:, [1, 2]].T, s=1, label="keypoints", zorder=0)
-        set_axis_limits(axs[1, 0], keypoints[:, [1, 2]], pctl=99, pad=0.1)
+        set_axis_limits(axs[1, 0], keypoints[:, [1, 2]], pctl=1, pad=0.1)
 
         # plot transformed keypoints
         keypoints = apply_rigid_transform(transform, keypoints)
         axs[0, 1].scatter(*keypoints[:, [0, 2]].T, s=1, label="keypoints", zorder=0)
-        set_axis_limits(axs[0, 1], keypoints[:, [0, 2]], pctl=99, pad=0.1)
+        set_axis_limits(axs[0, 1], keypoints[:, [0, 2]], pctl=1, pad=0.1)
         axs[1, 1].scatter(*keypoints[:, [1, 2]].T, s=1, label="keypoints", zorder=0)
-        set_axis_limits(axs[1, 1], keypoints[:, [1, 2]], pctl=99, pad=0.1)
+        set_axis_limits(axs[1, 1], keypoints[:, [1, 2]], pctl=1, pad=0.1)
 
     for ax in axs[:, 0]:
         ax.set_title("untransformed")
