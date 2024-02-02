@@ -40,7 +40,7 @@ def pad_axis_limits(xmin, xmax, ymin, ymax, pad=0.1):
     return xmin, xmax, ymin, ymax
 
 
-def set_axis_limits(ax, data, pctl=99, pad=0.1):
+def set_axis_limits(ax, data, pctl=1, pad=0.1):
     """
     Set the axis limits of a matplotlib axis based on the data.
 
@@ -162,9 +162,7 @@ def plot_residuals(
         reprojections[cam] = project_points(
             pts, all_extrinsics[cam], all_intrinsics[cam][0]
         )
-        uvs_undistorted = undistort_points(
-            all_calib_uvs[cam], *all_intrinsics[cam]
-        )
+        uvs_undistorted = undistort_points(all_calib_uvs[cam], *all_intrinsics[cam])
         valid_ixs = np.nonzero(~np.isnan(uvs_undistorted).any((-1, -2)))[0]
         for t in valid_ixs:
             H = cv2.findHomography(uvs_undistorted[t], calib_objpoints[:, :2])
@@ -193,9 +191,7 @@ def plot_residuals(
             marker="+",
             linewidth=0.5,
         )
-        axes.flat[cam].scatter(
-            *pts[plot_ixs].T, c="r", s=marker_size, linewidth=0
-        )
+        axes.flat[cam].scatter(*pts[plot_ixs].T, c="r", s=marker_size, linewidth=0)
         axes.flat[cam].set_title(
             f"camera {cam} (median error={median_error[cam]:.2f})", fontsize=10
         )
@@ -263,9 +259,7 @@ def overlay_detections(
         output_path = os.path.splitext(video_path)[0] + ".overlay.mp4"
 
     if os.path.exists(output_path) and not overwrite:
-        print(
-            f'{output_path} already exists. Set "overwrite=True" to overwrite.'
-        )
+        print(f'{output_path} already exists. Set "overwrite=True" to overwrite.')
         return
 
     if detections is None:
@@ -303,9 +297,7 @@ def overlay_detections(
                     )
 
                 if draw_lines:
-                    for pos1, pos2, color in zip(
-                        positions[:-1], positions[1:], colors
-                    ):
+                    for pos1, pos2, color in zip(positions[:-1], positions[1:], colors):
                         frame = cv2.line(
                             frame, pos1, pos2, color, 2, lineType=cv2.LINE_AA
                         )
@@ -321,3 +313,91 @@ def overlay_detections(
                 cv2.LINE_AA,
             )
             writer.append_data(frame)
+
+
+def visualize_flatibration(
+    transform, floor_points, keypoints=None, max_points_to_plot=5000, figsize=(12, 6)
+):
+    """
+    Visualize the output of flatibration.
+
+    Parameters
+    ----------
+    transform : array of shape (6,)
+        Rigid transform output by :py:func:`multicam_calibration.flatibration.flatibrate`.
+
+    floor_points : np.array of shape (n_points, 3) or a list of np.arrays
+        3D keypoints that correspond to the floor of the recording arena.
+
+    keypoints : np.array of shape (n_frames, n_keypoints, 3) or a list of np.arrays, optional
+        3D keypoints of the animal(s) in the recording arena that were used for flatibration.
+
+    max_points_to_plot : int, default=10000
+        Maximum number of points to plot. If the number of points exceeds this value, a random
+        subset of points will be plotted.
+
+    figsize : tuple of int, default=(12, 12)
+        Size of the figure.
+    """
+    fig, axs = plt.subplots(2, 2, figsize=figsize)
+
+    if isinstance(floor_points, list):
+        floor_points = np.concatenate(floor_points)
+
+    if len(floor_points) > max_points_to_plot:
+        ix = np.random.choice(len(floor_points), max_points_to_plot, replace=False)
+        floor_points = floor_points[ix]
+
+    # plot untransformed floor points
+    axs[0, 0].scatter(*floor_points[:, [0, 2]].T, s=1, label="floor points", zorder=1)
+    set_axis_limits(axs[0, 0], floor_points[:, [0, 2]], pctl=99, pad=0.1)
+    axs[1, 0].scatter(*floor_points[:, [1, 2]].T, s=1, label="floor points", zorder=1)
+    set_axis_limits(axs[1, 0], floor_points[:, [1, 2]], pctl=99, pad=0.1)
+
+    # plot transformed floor points
+    floor_points = apply_rigid_transform(transform, floor_points)
+    axs[0, 1].scatter(*floor_points[:, [0, 2]].T, s=1, label="floor points", zorder=1)
+    set_axis_limits(axs[0, 0], floor_points[:, [0, 2]], pctl=99, pad=0.1)
+    axs[1, 1].scatter(*floor_points[:, [1, 2]].T, s=1, label="floor points", zorder=1)
+    set_axis_limits(axs[1, 0], floor_points[:, [1, 2]], pctl=99, pad=0.1)
+
+    if keypoints is not None:
+        if isinstance(keypoints, list):
+            keypoints = np.concatenate(keypoints)
+
+        keypoints = keypoints.reshape(-1, 3)
+        if len(keypoints) > max_points_to_plot:
+            ix = np.random.choice(len(keypoints), max_points_to_plot, replace=False)
+            keypoints = keypoints[ix]
+
+        # plot untransformed keypoints
+        axs[0, 0].scatter(*keypoints[:, [0, 2]].T, s=1, label="keypoints", zorder=0)
+        set_axis_limits(axs[0, 0], keypoints[:, [0, 2]], pctl=99, pad=0.1)
+        axs[1, 0].scatter(*keypoints[:, [1, 2]].T, s=1, label="keypoints", zorder=0)
+        set_axis_limits(axs[1, 0], keypoints[:, [1, 2]], pctl=99, pad=0.1)
+
+        # plot transformed keypoints
+        keypoints = apply_rigid_transform(transform, keypoints)
+        axs[0, 0].scatter(*keypoints[:, [0, 2]].T, s=1, label="keypoints", zorder=0)
+        set_axis_limits(axs[0, 0], keypoints[:, [0, 2]], pctl=99, pad=0.1)
+        axs[1, 0].scatter(*keypoints[:, [1, 2]].T, s=1, label="keypoints", zorder=0)
+        set_axis_limits(axs[1, 0], keypoints[:, [1, 2]], pctl=99, pad=0.1)
+
+    for ax in axs[:, 0]:
+        ax.set_title("untransformed")
+
+    for ax in axs[:, 1]:
+        ax.set_title("transformed")
+
+    for ax in axs[0]:
+        ax.set_xlabel("x")
+
+    for ax in axs[1]:
+        ax.set_xlabel("y")
+
+    for ax in axs.flat:
+        ax.set_ylabel("z")
+        ax.axhline(0, color="k", lw=1, zorder=2)
+
+    fig.tight_layout()
+    return fig
