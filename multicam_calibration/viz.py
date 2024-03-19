@@ -1,5 +1,4 @@
 from vidio.read import OpenCVReader
-import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import imageio
@@ -12,6 +11,7 @@ na = np.newaxis
 
 from .geometry import *
 from .bundle_adjustment import embed_calib_objpoints
+from functools import partial
 
 
 def pad_axis_limits(xmin, xmax, ymin, ymax, pad=0.1):
@@ -316,7 +316,13 @@ def overlay_detections(
 
 
 def visualize_flatibration(
-    transform, floor_points, keypoints=None, max_points_to_plot=5000, figsize=(12, 6)
+    transform,
+    floor_points,
+    keypoints=None,
+    max_points_to_plot=5000,
+    figsize=(12, 6),
+    axis_limits_pad=0.1,
+    axis_limits_pctl=1,
 ):
     """
     Visualize the output of flatibration.
@@ -338,6 +344,17 @@ def visualize_flatibration(
 
     figsize : tuple of int, default=(12, 12)
         Size of the figure.
+
+    axis_limits_pad : float, default=0.1
+        Fraction of the axis range to pad (see :py:func:`set_axis_limits`).
+
+    axis_limits_pctl : float, default=1
+        Percentile of the data to use for setting the limits (see :py:func:`set_axis_limits`).
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Figure containing the plot.
     """
     fig, axs = plt.subplots(2, 2, figsize=figsize)
 
@@ -348,18 +365,20 @@ def visualize_flatibration(
         ix = np.random.choice(len(floor_points), max_points_to_plot, replace=False)
         floor_points = floor_points[ix]
 
+    set_lims = partial(set_axis_limits, pctl=axis_limits_pctl, pad=axis_limits_pad)
+
     # plot untransformed floor points
     axs[0, 0].scatter(*floor_points[:, [0, 2]].T, s=1, label="floor points", zorder=1)
-    set_axis_limits(axs[0, 0], floor_points[:, [0, 2]], pctl=1, pad=0.1)
+    set_lims(axs[0, 0], floor_points[:, [0, 2]])
     axs[1, 0].scatter(*floor_points[:, [1, 2]].T, s=1, label="floor points", zorder=1)
-    set_axis_limits(axs[1, 0], floor_points[:, [1, 2]], pctl=1, pad=0.1)
+    set_lims(axs[1, 0], floor_points[:, [1, 2]])
 
     # plot transformed floor points
     floor_points = apply_rigid_transform(transform, floor_points)
     axs[0, 1].scatter(*floor_points[:, [0, 2]].T, s=1, label="floor points", zorder=1)
-    set_axis_limits(axs[0, 1], floor_points[:, [0, 2]], pctl=1, pad=0.1)
+    set_lims(axs[0, 1], floor_points[:, [0, 2]])
     axs[1, 1].scatter(*floor_points[:, [1, 2]].T, s=1, label="floor points", zorder=1)
-    set_axis_limits(axs[1, 1], floor_points[:, [1, 2]], pctl=1, pad=0.1)
+    set_lims(axs[1, 1], floor_points[:, [1, 2]])
 
     if keypoints is not None:
         if isinstance(keypoints, list):
@@ -372,16 +391,16 @@ def visualize_flatibration(
 
         # plot untransformed keypoints
         axs[0, 0].scatter(*keypoints[:, [0, 2]].T, s=1, label="keypoints", zorder=0)
-        set_axis_limits(axs[0, 0], keypoints[:, [0, 2]], pctl=1, pad=0.1)
+        set_lims(axs[0, 0], keypoints[:, [0, 2]])
         axs[1, 0].scatter(*keypoints[:, [1, 2]].T, s=1, label="keypoints", zorder=0)
-        set_axis_limits(axs[1, 0], keypoints[:, [1, 2]], pctl=1, pad=0.1)
+        set_lims(axs[1, 0], keypoints[:, [1, 2]])
 
         # plot transformed keypoints
         keypoints = apply_rigid_transform(transform, keypoints)
         axs[0, 1].scatter(*keypoints[:, [0, 2]].T, s=1, label="keypoints", zorder=0)
-        set_axis_limits(axs[0, 1], keypoints[:, [0, 2]], pctl=1, pad=0.1)
+        set_lims(axs[0, 1], keypoints[:, [0, 2]])
         axs[1, 1].scatter(*keypoints[:, [1, 2]].T, s=1, label="keypoints", zorder=0)
-        set_axis_limits(axs[1, 1], keypoints[:, [1, 2]], pctl=1, pad=0.1)
+        set_lims(axs[1, 1], keypoints[:, [1, 2]])
 
     for ax in axs[:, 0]:
         ax.set_title("untransformed")

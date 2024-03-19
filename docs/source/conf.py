@@ -12,13 +12,14 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../'))
+
+sys.path.insert(0, os.path.abspath("../../"))
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'Multi-Camera Calibration'
-author = 'Caleb Weinreb'
+project = "Multi-camera Calibration"
+author = "Caleb Weinreb"
 
 
 # -- General configuration ---------------------------------------------------
@@ -33,26 +34,23 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "autodocsumm",
-    "myst_nb"
+    "myst_nb",
 ]
 
-source_suffix = {
-    '.rst': 'restructuredtext',
-    '.ipynb': 'myst-nb'
-}
+source_suffix = {".rst": "restructuredtext", ".ipynb": "myst-nb"}
 
 autodoc_default_options = {
-    'autosummary': True,
+    "autosummary": True,
 }
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['_build']
-html_static_path = ['_static']
+exclude_patterns = ["_build"]
+html_static_path = ["_static"]
 
 nb_execution_mode = "off"
 
@@ -61,15 +59,15 @@ nb_execution_mode = "off"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = "sphinx_rtd_theme"
 html_show_sourcelink = True
 
 html_context = {
-    "display_github": True, # Integrate GitHub
-    "github_user": "calebweinreb", # Username
-    "github_repo": "multicam-calibration", # Repo name
-    "github_version": "main", # Version
-    "conf_py_path": "/docs/source/", # Path in the checkout to the docs root
+    "display_github": True,  # Integrate GitHub
+    "github_user": "calebweinreb",  # Username
+    "github_repo": "multicam-calibration",  # Repo name
+    "github_version": "main",  # Version
+    "conf_py_path": "/docs/source/",  # Path in the checkout to the docs root
 }
 
 
