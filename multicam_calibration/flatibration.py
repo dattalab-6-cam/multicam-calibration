@@ -9,16 +9,21 @@ Input:
 
 Output:
     3D rigid transform that maps from the coordinate system of the input keypoints to 
-    a coordinate system where the XY plane is the floor of the recording arena
-
+    a coordinate system where the XY plane is the floor of the recording arena. 
+    
 Algorithm:
     Suppose z=ax+by+t is the equation of the plane identified by RANSAC. This means
     that vectors (1,0,a) and (0,1,b) are parallel to the floor plane, (a, b, -1) is 
-    orthogonal to the floor plane. The output transformation is uniquely determined by:
-      - map the centroid of the floor points to the origin
-      - map (1,0,a) to the X-axis
-      - map (0,1,b) to the Y-axis
-      - map (-a, -b, 1) to the Z-axis
+    orthogonal to the floor plane. The output transformation is uniquely determined by
+    the following criteria
+      - the origin is contained within the floor plane
+      - the vector (0,0,0)->(1,0,a) maps to the X-axis
+      - the vector (0,0,0)->(0,1,b) maps to the Y-axis
+      - the vector (0,0,0)->(-a, -b, 1) maps to the Z-axis
+
+Optional steps:
+    - Flip the z-axis to point in the opposite direction.
+    - Move the center of the arena to the origin.
 """
 
 import numpy as np
@@ -28,6 +33,7 @@ from .geometry import (
     rigid_transform_from_correspondences,
     get_transformation_matrix,
     get_transformation_vector,
+    apply_rigid_transform,
 )
 
 
@@ -84,7 +90,7 @@ def flatibrate(floor_points, residual_threshold=10):
     source_x_axis = np.array([1, 0, a])
     source_y_axis = np.array([0, 1, b])
     source_z_axis = np.array([-a, -b, 1])
-    source_origin = np.median(floor_points, axis=0)
+    source_origin = np.array([0, 0, ransac.estimator_.intercept_])
 
     source_pts = np.array(
         [
@@ -128,3 +134,58 @@ def flip_z_axis(transform):
     T_flipped = np.diag([1, -1, -1, 1]) @ T
     transform_flipped = get_transformation_vector(T_flipped)
     return transform_flipped
+
+
+def center_arena(transform, floor_points, center_method="midrange", range_pctl=1):
+    """
+    Compose the input rigid transform with a translation that moves the center of the
+    arena to the origin. This function assumes that the input transform maps the floor
+    points to the XY plane, hence translation is restricted to the XY plane.
+
+    Parameters
+    ----------
+    transform : np.array of shape (6,)
+        Rigid transform in vector format. The first three elements specify a rotation in
+        axis-angle form and the last three elements specify a translation.
+
+    floor_points : np.array of shape (n_points, 3) or a list of np.arrays
+        3D keypoints that correspond to the floor of the recording arena.
+
+    center_method : str, default='midrange'
+        Method to compute the center of the arena.
+        - ``midrange``: average of robust min and max, computed using ``range_pctl``.
+        - ``mean``: average of the floor points.
+        - ``median``: median of the floor points.
+
+    range_pctl : float, default=1
+        Percentile to compute the robust min and max of the floor points, used only if
+        ``center_method`` is 'midrange'.
+
+    Returns
+    -------
+    transform_centered : np.array of shape (6,)
+        Rigid transform in vector format. The first three elements specify a rotation in
+        axis-angle form and the last three elements specify a translation.
+    """
+    if isinstance(floor_points, list):
+        floor_points = np.concatenate(floor_points)
+
+    # apply the input transform to the floor points
+    pts = apply_rigid_transform(transform, floor_points)[:, :2]
+
+    # compute the center of the arena
+    if center_method == "midrange":
+        center = np.percentile(pts, [range_pctl, 100 - range_pctl], axis=0).mean(axis=0)
+    elif center_method == "mean":
+        center = np.mean(pts, axis=0)
+    elif center_method == "median":
+        center = np.median(pts, axis=0)
+    else:
+        raise ValueError("center_method should be 'midrange', 'mean', or 'median'")
+
+    # compose input transform with a translation that moves center to the origin
+    translation = np.array([0, 0, 0, -center[0], -center[1], 0])
+    T = get_transformation_matrix(translation) @ get_transformation_matrix(transform)
+    transform_centered = get_transformation_vector(T)
+
+    return transform_centered
