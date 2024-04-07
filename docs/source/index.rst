@@ -44,7 +44,12 @@ Anyone using multiple cameras (or a single camera with mirrors) to track stuff i
 
    troubleshooting
 
+
 .. toctree::
    :caption: API Documentation
 
-   api
+   geometry
+   calibration
+   detection
+   io
+   viz
