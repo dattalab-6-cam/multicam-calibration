@@ -30,9 +30,7 @@ def embed_calib_objpoints(calib_objpoints, calib_poses):
     return calib_worldpoints
 
 
-def predict_calib_uvs(
-    all_extrinsics, all_intrinsics, calib_objpoints, calib_poses
-):
+def predict_calib_uvs(all_extrinsics, all_intrinsics, calib_objpoints, calib_poses):
     """
     Predict the (u,v) coordinates of calibration object points in each frame
     for each camera.
@@ -115,12 +113,8 @@ def bundle_adjustment_sparsity(all_calib_uvs):
     n_params = n_cameras * 12 + n_frames * 6
 
     mask = ~np.isnan(all_calib_uvs)
-    camera_ixs = np.tile(
-        np.arange(n_cameras)[:, na, na, na], (1, n_frames, N, 2)
-    )[mask]
-    frame_ixs = np.tile(
-        np.arange(n_frames)[na, :, na, na], (n_cameras, 1, N, 2)
-    )[mask]
+    camera_ixs = np.tile(np.arange(n_cameras)[:, na, na, na], (1, n_frames, N, 2))[mask]
+    frame_ixs = np.tile(np.arange(n_frames)[na, :, na, na], (n_cameras, 1, N, 2))[mask]
 
     A = lil_matrix((mask.sum(), n_params), dtype=int)
     i = np.arange(mask.sum())
@@ -151,9 +145,7 @@ def serialize_params(all_extrinsics, all_intrinsics, calib_poses):
         object's canonical coordinates to world coordinates.
     """
     x0 = []
-    for transform, (camera_matrix, dist_coefs) in zip(
-        all_extrinsics, all_intrinsics
-    ):
+    for transform, (camera_matrix, dist_coefs) in zip(all_extrinsics, all_intrinsics):
         fx, fy, cx, cy = (
             camera_matrix[0, 0],
             camera_matrix[1, 1],
@@ -207,8 +199,8 @@ def bundle_adjust(
     calib_objpoints,
     calib_poses,
     n_frames=10000,
-    outlier_pctl=95,
-    **opt_kwargs
+    outlier_threshold=None,
+    **opt_kwargs,
 ):
     """
     Bundle adjustment for camera parameters and 3D points.
@@ -242,9 +234,10 @@ def bundle_adjust(
         Number of randomly-sampled frames to use for bundle adjustment.
         If `None`, all frames are used.
 
-    outlier_pctl : float, default=95
-        Frames with reprojection error (max across cameras) greater than this
-        percentile are excluded from bundle adjustment.
+    outlier_threshold : float, default=None
+        Frames will be excluded from the optimization if the mean reprojection
+        in at least one camera exceeds this value. If `None`, the threshold is
+        set to 5 times the median error.
 
     opt_kwargs : dict
         Additional keyword arguments to pass to `scipy.optimize.least_squares`.
@@ -270,9 +263,7 @@ def bundle_adjust(
         Result object returned by `scipy.optimize.least_squares`.
     """
     n_cameras, _, N, _ = all_calib_uvs.shape
-    use_frames = np.nonzero(
-        (~np.isnan(all_calib_uvs).any((-1, -2))).sum(0) > 1
-    )[0]
+    use_frames = np.nonzero((~np.isnan(all_calib_uvs).any((-1, -2))).sum(0) > 1)[0]
 
     # remove frames with high reprojection error
     predicted_uvs = predict_calib_uvs(
@@ -282,14 +273,21 @@ def bundle_adjust(
         calib_poses[use_frames],
     )
 
+    err = np.linalg.norm(all_calib_uvs[:, use_frames] - predicted_uvs, axis=-1)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
-        sq_err = (all_calib_uvs[:, use_frames] - predicted_uvs) ** 2
-        mean_sq_err = np.nanmax(np.nanmean(sq_err, axis=(-1, -2)), axis=0)
+        worst_mean_err = np.nanmax(np.nanmean(err, axis=-1), axis=0)
 
-    outlier_threshold = np.nanpercentile(mean_sq_err, outlier_pctl)
-    exclude = np.nan_to_num(mean_sq_err) > outlier_threshold
+    if outlier_error is None:
+        outlier_error = 5 * np.nanmedian(err, axis=-1)
+
+    exclude = np.nan_to_num(worst_mean_err) > outlier_threshold
     use_frames = use_frames[~exclude]
+
+    print(
+        f"Excluding {int(exclude.sum())} out of {len(use_frames)} frames "
+        f"based on an outlier threshold of {outlier_threshold}"
+    )
 
     # sample frames
     if n_frames is None or n_frames > len(use_frames):
@@ -299,9 +297,7 @@ def bundle_adjust(
 
     # setup optimization
     A = bundle_adjustment_sparsity(all_calib_uvs[:, use_frames])
-    x0 = serialize_params(
-        all_extrinsics, all_intrinsics, calib_poses[use_frames]
-    )
+    x0 = serialize_params(all_extrinsics, all_intrinsics, calib_poses[use_frames])
     default_kwargs = dict(
         verbose=2, x_scale="jac", ftol=1e-4, method="trf", loss="soft_l1"
     )
@@ -313,7 +309,7 @@ def bundle_adjust(
         x0,
         jac_sparsity=A,
         **default_kwargs,
-        args=(all_calib_uvs[:, use_frames], calib_objpoints)
+        args=(all_calib_uvs[:, use_frames], calib_objpoints),
     )
 
     (
