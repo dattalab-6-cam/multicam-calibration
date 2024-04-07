@@ -40,6 +40,11 @@ Anyone using multiple cameras (or a single camera with mirrors) to track stuff i
    math
 
 .. toctree::
+   :caption: Troubleshooting
+
+   troubleshooting
+
+.. toctree::
    :caption: API Documentation
 
    api

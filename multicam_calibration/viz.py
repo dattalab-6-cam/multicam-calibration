@@ -211,6 +211,7 @@ def overlay_detections(
     video_path,
     detections=None,
     output_path=None,
+    frame_range=None,
     overwrite=False,
     dotsize=3,
     draw_lines=True,
@@ -235,7 +236,11 @@ def overlay_detections(
 
     output_path : str, optional
         Path to save the output video. If not provided, the video will be saved
-        to `{video_path}.overlay.mp4`.
+        to `{video_path}.overlay-{start_frame}-{end_frame}.mp4`.
+
+    frame_range : tuple (start_frame, end_frame), optional
+        Range of frames to include. If not provided, the entire video will be
+        processed.
 
     overwrite : bool, default=False
         If True, overwrite the output video if it already exists.
@@ -255,13 +260,6 @@ def overlay_detections(
     quality : int, default=6
         Quality of the output video (passed to `imageio.get_writer`)
     """
-    if output_path is None:
-        output_path = os.path.splitext(video_path)[0] + ".overlay.mp4"
-
-    if os.path.exists(output_path) and not overwrite:
-        print(f'{output_path} already exists. Set "overwrite=True" to overwrite.')
-        return
-
     if detections is None:
         detections_path = os.path.splitext(video_path)[0] + ".detections.h5"
 
@@ -274,17 +272,28 @@ def overlay_detections(
             frame_ixs = f["frame_ixs"][()]
             detections = {t: uvs[i] for i, t in enumerate(frame_ixs)}
 
-    if output_path is None:
-        output_path = os.path.splitext(video_path)[0] + ".overlay.mp4"
-
     reader = OpenCVReader(video_path)
+
+    if frame_range is None:
+        start_frame = 0
+        end_frame = len(reader)
+    else:
+        start_frame, end_frame = frame_range
+        assert start_frame < end_frame, "start_frame must be less than end_frame."
+
+    if output_path is None:
+        base_path = os.path.splitext(video_path)[0]
+        output_path = f"{base_path}.overlay-{start_frame}-{end_frame}.mp4"
+
+    assert (
+        not os.path.exists(output_path)
+    ) or overwrite, f'{output_path} already exists. Set "overwrite=True" to overwrite.'
 
     with imageio.get_writer(
         output_path, pixelformat="yuv420p", fps=reader.fps, quality=quality
     ) as writer:
-        for frame_ix, frame in tqdm.tqdm(
-            enumerate(reader), total=len(reader), ncols=72, unit="frame"
-        ):
+        for frame_ix in tqdm.trange(start_frame, end_frame, ncols=72, unit="frame"):
+            frame = reader[frame_ix]
             if frame_ix in detections:
                 uvs = detections[frame_ix]
                 positions = [(int(u), int(v)) for u, v in uvs]

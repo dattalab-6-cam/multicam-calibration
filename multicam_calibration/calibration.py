@@ -56,18 +56,14 @@ def get_intrinsics(
     n_samples = min(n_samples, len(calib_uvs))
 
     imgpoints = [
-        calib_uvs[i]
-        for i in np.random.choice(len(calib_uvs), n_samples, replace=False)
+        calib_uvs[i] for i in np.random.choice(len(calib_uvs), n_samples, replace=False)
     ]
     imgpoints = np.array(imgpoints).astype(np.float32)
 
     calib_objpoints = np.repeat(calib_objpoints[na], n_samples, axis=0).astype(
         np.float32
     )
-    flags = (
-        cv2.CALIB_FIX_K3 * fix_k3
-        + cv2.CALIB_ZERO_TANGENT_DIST * zero_tangent_dist
-    )
+    flags = cv2.CALIB_FIX_K3 * fix_k3 + cv2.CALIB_ZERO_TANGENT_DIST * zero_tangent_dist
 
     camera_matrix, dist_coefs = cv2.calibrateCamera(
         calib_objpoints, imgpoints, image_size, None, None, flags=flags
@@ -188,9 +184,7 @@ def get_camera_spanning_tree(all_calib_poses, root=0):
     calib_detected = ~np.isnan(all_calib_poses).any(2)
     for i in range(n_cameras):
         for j in range(i + 1, n_cameras):
-            n_common_frames = (
-                calib_detected[i, :] & calib_detected[j, :]
-            ).sum()
+            n_common_frames = (calib_detected[i, :] & calib_detected[j, :]).sum()
             edges.append((i, j, n_common_frames))
 
     G = nx.Graph()
@@ -198,10 +192,7 @@ def get_camera_spanning_tree(all_calib_poses, root=0):
     G.add_weighted_edges_from(edges)
     spanning_tree = nx.maximum_spanning_tree(G)
     root_dist = nx.shortest_path_length(spanning_tree, source=root)
-    edges = [
-        tuple(sorted(e, key=lambda n: root_dist[n]))
-        for e in spanning_tree.edges
-    ]
+    edges = [tuple(sorted(e, key=lambda n: root_dist[n])) for e in spanning_tree.edges]
     edges = sorted(edges, key=lambda e: root_dist[e[0]])
     return edges
 
@@ -227,6 +218,10 @@ def estimate_all_extrinsics(all_calib_poses, root=0):
         system of each camera (the root camera's transform is the identity).
         The first three elements specify a rotation in axis-angle form and the
         last three elements specify a translation.
+
+    spanning_tree : list of tuples
+        Spanning tree of camera pairs used to estimate the extrinsics (see
+        :py:func:`multicam_calibration.calibrate.get_camera_spanning_tree`).
     """
     all_extrinsics = [None] * len(all_calib_poses)
     all_extrinsics[root] = np.eye(4)
@@ -236,13 +231,9 @@ def estimate_all_extrinsics(all_calib_poses, root=0):
         transform = estimate_pairwise_camera_transform(
             all_calib_poses[c1], all_calib_poses[c2]
         )
-        all_extrinsics[c2] = (
-            get_transformation_matrix(transform) @ all_extrinsics[c1]
-        )
-    all_extrinsics = np.array(
-        list(map(get_transformation_vector, all_extrinsics))
-    )
-    return all_extrinsics
+        all_extrinsics[c2] = get_transformation_matrix(transform) @ all_extrinsics[c1]
+    all_extrinsics = np.array(list(map(get_transformation_vector, all_extrinsics)))
+    return all_extrinsics, spanning_tree
 
 
 def consensus_calib_poses(all_calib_poses, all_extrinsics):
@@ -271,18 +262,14 @@ def consensus_calib_poses(all_calib_poses, all_extrinsics):
         calibration detections in any camera are set to NaN.
     """
     all_calib_poses_world_coords = np.zeros_like(all_calib_poses) * np.nan
-    for i, (poses, transform) in enumerate(
-        zip(all_calib_poses, all_extrinsics)
-    ):
+    for i, (poses, transform) in enumerate(zip(all_calib_poses, all_extrinsics)):
         calib_detected = ~np.isnan(poses).any(axis=-1)
         T_board2camera = get_transformation_matrix(poses[calib_detected])
         T_world2camera = get_transformation_matrix(transform)
-        T_board2world = np.matmul(
-            np.linalg.inv(T_world2camera), T_board2camera
+        T_board2world = np.matmul(np.linalg.inv(T_world2camera), T_board2camera)
+        all_calib_poses_world_coords[i, calib_detected] = get_transformation_vector(
+            T_board2world
         )
-        all_calib_poses_world_coords[
-            i, calib_detected
-        ] = get_transformation_vector(T_board2world)
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -341,6 +328,10 @@ def calibrate(
         transformation from the canonical reference frame of the calibration
         object to world coordinates. Frames with no calibration object
         detections in any camera are set to NaN.
+
+    spanning_tree : list of tuples
+        Spanning tree of camera pairs used to estimate the extrinsics (see
+        :py:func:`multicam_calibration.calibrate.get_camera_spanning_tree`).
     """
     n_cameras = len(all_calib_uvs)
 
@@ -373,10 +364,10 @@ def calibrate(
 
     if verbose:
         print("Estimating camera extrinsics")
-    all_extrinsics = estimate_all_extrinsics(all_calib_poses, root=root)
+    all_extrinsics, spanning_tree = estimate_all_extrinsics(all_calib_poses, root=root)
 
     if verbose:
         print("Merging calibration object poses")
     calib_poses = consensus_calib_poses(all_calib_poses, all_extrinsics)
 
-    return all_extrinsics, all_intrinsics, calib_poses
+    return all_extrinsics, all_intrinsics, calib_poses, spanning_tree
