@@ -279,7 +279,7 @@ def bundle_adjust(
         worst_mean_err = np.nanmax(np.nanmean(err, axis=-1), axis=0)
 
     if outlier_threshold is None:
-        outlier_threshold = 5 * np.nanmedian(err, axis=-1)
+        outlier_threshold = 5 * np.nanmedian(err)
 
     exclude = np.nan_to_num(worst_mean_err) > outlier_threshold
     use_frames = use_frames[~exclude]
