@@ -284,6 +284,7 @@ def overlay_detections(
     if output_path is None:
         base_path = os.path.splitext(video_path)[0]
         output_path = f"{base_path}.overlay-{start_frame}-{end_frame}.mp4"
+        print(f"Saving to {output_path}")
 
     assert (
         not os.path.exists(output_path)
