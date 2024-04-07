@@ -278,8 +278,8 @@ def bundle_adjust(
         warnings.simplefilter("ignore", category=RuntimeWarning)
         worst_mean_err = np.nanmax(np.nanmean(err, axis=-1), axis=0)
 
-    if outlier_error is None:
-        outlier_error = 5 * np.nanmedian(err, axis=-1)
+    if outlier_threshold is None:
+        outlier_threshold = 5 * np.nanmedian(err, axis=-1)
 
     exclude = np.nan_to_num(worst_mean_err) > outlier_threshold
     use_frames = use_frames[~exclude]
