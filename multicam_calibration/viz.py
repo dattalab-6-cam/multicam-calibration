@@ -430,3 +430,55 @@ def visualize_flatibration(
 
     plt.tight_layout()
     return fig
+
+
+def plot_shared_detections(all_calib_uvs, spanning_tree, figsize=(9, 2)):
+    """
+    Generate a heatmap showing the timing of shared detections for each edge of the
+    spanning tree.
+
+    Parameters
+    ----------
+    all_calib_uvs : array of shape (n_cameras, n_frames, N, 2)
+        Calibration point detections for a number of frames for each camera.
+        NaNs are used to indicate missing detections.
+
+    spanning_tree : array of shape (n_edges, 2)
+        Edges of the spanning tree as pairs of camera indices.
+
+    figsize : tuple of int, default=(12, 3)
+        Size of the figure.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Figure containing the plot.
+
+    shared_detections : array of shape (n_edges, n_frames)
+        Data used to generate the heatmap. Each row corresponds to an edge of the
+        spanning tree, and each column corresponds to a frame. A 1 indicates that
+        both cameras in the edge detected the calibration object.
+    """
+    shared_detections = np.array(
+        [
+            np.all(~np.isnan(all_calib_uvs[[cam1, cam2]]).any((-1, -2)), axis=0)
+            for cam1, cam2 in spanning_tree
+        ]
+    )
+
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    ax.imshow(
+        shared_detections,
+        aspect="auto",
+        cmap="binary",
+        origin="lower",
+        interpolation="none",
+    )
+    ax.set_xlabel("frame")
+    ax.set_title("Shared detections")
+    ax.set_yticks(np.arange(len(spanning_tree)))
+    ax.set_yticklabels(
+        [f"(camera {cam1}, camera {cam2})" for cam1, cam2 in spanning_tree]
+    )
+    plt.tight_layout()
+    return fig, shared_detections

@@ -59,5 +59,5 @@ The first step of calibration is to record a calibration video. This involves fi
 Additional tips:
    - Make sure the calibration object is unobstructed and fits entirely within each camera's field of view (at least most of the time). Otherwise it won't be detected.
    - Cover a broad range of angles and locations for best results.
-   - Avoid motion blur by moving the object slowly or (better) minizing the camera's explosure time.
+   - Avoid motion blur by moving the object slowly or minizing the camera's explosure time.
    - Make sure that the videos are not washed-out or overly dim. The checker pattern and gray corner-dot should be clearly visible in most frames. 

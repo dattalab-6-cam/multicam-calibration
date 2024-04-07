@@ -1,35 +1,35 @@
+.. note::
+    All the code snippets below are meant to be used in the context of the Turorial notebook.
+
 High reprojection error
 -----------------------
 
-Reprojection error is the difference between observed and projected points on the calibration object. The function :py:func:`multicam_calibration.viz.plot_residuals` plots reprojection errors for all cameras and all frames and reports the median error for each camera. Example output for a successful calibration is shown below:
-
-.. image:: _static/successful_initial_residuals.png
-    :width: 500px
-
-High median error (e.g. > 1) may indicate that calibration has failed. The following factors can contribute to high reprojection error:
+Reprojection error is the difference between observed and projected points on the calibration object, and can be checked using :py:func:`multicam_calibration.viz.plot_residuals`. High median error (e.g. > 1) may indicate that calibration has failed. The following factors can contribute to high reprojection error.
 
 1. Insufficient number/diversity of overlapping detections. 
 
-    To check the number of overlapping detections between all pairs of cameras, run:
+    To correctly calculate the camera extrinsics, there must be a sufficient number and variety of shared detections of the calibration object. Based on the number of pairwise overlaps between each pair of cameras (which can be checked using :py:func:`multicam_calibration.detection.summarize_detections`), a maximum spanning tree (MST) is constructed relating each camera to the root the camera (see XXX). If any edge of the MST has insufficient detections, the calibration will fail. To check the number and temporal distributon of shared detections across each camera-pair in the MST, run:
 
     .. code-block:: python
 
-        mcc.summarize_detections(all_calib_uvs)
+        mcc.plot_shared_detections(all_calib_uvs, spanning_tree);
 
-    The camera-pairs that matter most are the edges of the maximum spanning tree (MST) used for initial calibration (see XXX). Use :py:func:`multicam_calibration.viz.plot_shared_detections` to visualize overlapping detections for edges of the MST. Example output for a successful calibration is shown below:
+    Here is an example of the output for a successful calibration:
 
-    [IMAGE]
+    .. image:: _static/successful_shared_detections.jpg
+        :width: 600px
 
-    Problematic camera-pairs are those with few overlapping detections, or those for which the shared detections are all concentrated at a single moment in time (and thus do not cover a variety of angles for the calibration object). To troubleshoot too few overlapping detections, see `Poor detection of calibration object`_ below.
+    A failure mode would be if one of the rows contained very few detections, or if all the detections were concentrated at a single moment in time (and thus dis not cover a variety of angles for the calibration object). To troubleshoot too few overlapping detections, see `Poor detection of calibration object`_ below.
 
-2. Large number of erroneous detections.
 
-    Erroneous detections may be evident in the output of :py:func:`multicam_calibration.viz.plot_residuals` as outlier points, as seen in the example below:
+2. Large number of detection errors.
+
+    Assuming initial calibration converges to roughly the correct solution, detection errors will lead to visible outliers in the output of :py:func:`multicam_calibration.viz.plot_residuals`, as seen for "camera 4" below. To troubleshoot erroneous detections, see `Detection errors`_ below.
 
     .. image:: _static/outliers_example.png
-        :width: 300px
+        :width: 600px
 
-    To troubleshoot erroneous detections, see `Detection errors`_ below.
+    
 
 
 Detection errors
@@ -49,24 +49,28 @@ If a camera appears to have a high number of outlier frames (e.g. as revealed by
 .. image:: _static/plot_error_over_time_example.png
     :width: 600px
 
-In this example, we can see several spikes in the error, including around frame 1500. To diagnose the issue, we can save a video clip with the detections overlaid:
+In this example, we can see several spikes in the error, including around frame 1500. The code below saves a video clip with the detections overlaid, which reveals that the problem is reflections.
 
 .. code-block:: python
 
     mcc.overlay_detections('path/to/video.mp4', frame_range=(1400, 1700))
 
 
+.. image:: _static/detection_errors_example.gif
+    :width: 400px
 
 
+|
 
 Poor detection of calibration object
 ------------------------------------
 
-- Object must be fully within the image to be detected.
-- Should ideally be detected in >50% of frames where it is visible.
-- Possible reasons for non-detection (assuming object is a chessboard pattern)
-    - Wrong ``board_shape`` parameter (see XXX for determining this parameter)
-    - Occlusions and/or reflections
-    - Poor focus or motion blur
+[STUB]
+Object must be fully within the image to be detected. Should ideally be detected in >50% of frames where it is visible. Possible reasons for non-detection (assuming object is a chessboard pattern) are listed below.
 
+- Wrong ``board_shape`` parameter (see XXX for determining this parameter)
+
+- Occlusions and/or reflections
+
+- Poor focus or motion blur
 
