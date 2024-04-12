@@ -200,6 +200,9 @@ def plot_residuals(
         if hide_axes:
             axes.flat[cam].axis("off")
 
+    for i in range(n_cameras, n_rows * n_cols):
+        axes.flat[i].axis("off")
+
     aspect_ratio = calib_objpoints[:, 1].ptp() / calib_objpoints[:, 0].ptp()
     fig.set_size_inches(
         (n_cols * inches_per_axis, n_rows * inches_per_axis * aspect_ratio)
