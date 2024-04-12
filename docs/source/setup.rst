@@ -31,6 +31,10 @@ Resources for synchronizing multiple cameras:
   - `JARVIS - Markerless 3D Motion Capture Toolbox <https://jarvis-mocap.github.io/jarvis-docs/>`_
 
 
+.. note::
+   If your view-angles include a mixture of direct and mirrored views, the mirrored views must be flipped horizontally before calibration, and keypoint coordinates used for subsequent steps should also incorporate the flip. 
+
+
 Building the calibration object
 -------------------------------
 
