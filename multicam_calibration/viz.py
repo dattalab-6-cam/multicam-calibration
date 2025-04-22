@@ -203,7 +203,7 @@ def plot_residuals(
     for i in range(n_cameras, n_rows * n_cols):
         axes.flat[i].axis("off")
 
-    aspect_ratio = calib_objpoints[:, 1].ptp() / calib_objpoints[:, 0].ptp()
+    aspect_ratio = np.ptp(calib_objpoints[:, 1]) / np.ptp(calib_objpoints[:, 0])
     fig.set_size_inches(
         (n_cols * inches_per_axis, n_rows * inches_per_axis * aspect_ratio)
     )
