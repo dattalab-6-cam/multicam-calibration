@@ -30,6 +30,63 @@ def embed_calib_objpoints(calib_objpoints, calib_poses):
     return calib_worldpoints
 
 
+def estimate_calib_poses_from_triangulation(
+    all_calib_uvs, all_extrinsics, all_intrinsics, calib_objpoints
+):
+    """
+    Estimate calibration object poses in world coordinates using triangulation.
+
+    For each frame, this function triangulates the 3D positions of calibration
+    points in world coordinates from their detections across multiple cameras,
+    then computes the rigid transform that maps canonical calibration object
+    points to the triangulated world points.
+
+    Parameters
+    ----------
+    all_calib_uvs : array of shape (n_cameras, n_frames, N, 2)
+        Calibration point detections for all frames and cameras.
+        NaNs indicate missing detections.
+
+    all_extrinsics : array of shape (n_cameras, 6)
+        Transforms from world coordinates to each camera's coordinates.
+
+    all_intrinsics : list of tuples (camera_matrix, dist_coefs)
+        Camera intrinsics for each camera.
+
+    calib_objpoints : array of shape (N, 3)
+        3D coordinates of calibration points in canonical/reference frame.
+
+    Returns
+    -------
+    calib_poses : array of shape (n_frames, 6)
+        Calibration object poses in world coordinates (rigid transforms from
+        canonical to world). Frames that cannot be triangulated (e.g., observed
+        by fewer than 2 cameras or with fewer than 3 valid points) are set to NaN.
+    """
+    n_cameras, n_frames, N, _ = all_calib_uvs.shape
+    calib_poses = np.zeros((n_frames, 6)) * np.nan
+
+    for frame_ix in range(n_frames):
+        frame_uvs = [all_calib_uvs[cam_ix, frame_ix] for cam_ix in range(n_cameras)]
+
+        world_points = triangulate(frame_uvs, all_extrinsics, all_intrinsics)
+
+        valid_mask = ~np.isnan(world_points).any(axis=-1)
+        n_valid = valid_mask.sum()
+
+        if n_valid >= 3:
+            valid_world_points = world_points[valid_mask]
+            valid_objpoints = calib_objpoints[valid_mask]
+
+            transform, rmsd = rigid_transform_from_correspondences(
+                source_points=valid_objpoints,
+                target_points=valid_world_points
+            )
+            calib_poses[frame_ix] = transform
+
+    return calib_poses
+
+
 def predict_calib_uvs(all_extrinsics, all_intrinsics, calib_objpoints, calib_poses):
     """
     Predict the (u,v) coordinates of calibration object points in each frame
@@ -47,7 +104,7 @@ def predict_calib_uvs(all_extrinsics, all_intrinsics, calib_objpoints, calib_pos
     calib_objpoints : array of shape (N, 3)
         3D coordinates of the calibration points in a canonical reference frame.
 
-    calib_poses : array of shape (n_frames, N, 3)
+    calib_poses : array of shape (n_frames, 6)
         Initial calibration object poses in each frame.
 
     Returns
@@ -197,7 +254,7 @@ def bundle_adjust(
     all_extrinsics,
     all_intrinsics,
     calib_objpoints,
-    calib_poses,
+    calib_poses=None,
     n_frames=10000,
     outlier_threshold=None,
     **opt_kwargs,
@@ -227,10 +284,12 @@ def bundle_adjust(
     calib_objpoints : array of shape (N, 3)
         3D coordinates of the calibration points in a canonical reference frame.
 
-    calib_poses : array of shape (n_frames, N, 3)
-        Initial calibration object poses in each frame.
+    calib_poses : array of shape (n_frames, 6), optional
+        Initial calibration object poses in each frame. If None, poses will be
+        estimated via triangulation using the provided extrinsics and intrinsics.
+        Default is None.
 
-    n_frames : int, default=1000
+    n_frames : int, default=10000
         Number of randomly-sampled frames to use for bundle adjustment.
         If `None`, all frames are used.
 
@@ -263,6 +322,12 @@ def bundle_adjust(
         Result object returned by `scipy.optimize.least_squares`.
     """
     n_cameras, _, N, _ = all_calib_uvs.shape
+
+    if calib_poses is None:
+        calib_poses = estimate_calib_poses_from_triangulation(
+            all_calib_uvs, all_extrinsics, all_intrinsics, calib_objpoints
+        )
+
     use_frames = np.nonzero((~np.isnan(all_calib_uvs).any((-1, -2))).sum(0) > 1)[0]
 
     # remove frames with high reprojection error

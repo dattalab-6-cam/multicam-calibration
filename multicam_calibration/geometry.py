@@ -431,3 +431,61 @@ def triangulate(all_uvs, all_extrinsics, all_intrinsics):
         else:
             robust_points.append(np.nanmedian(pairwise_points[:, i], axis=0))
     return np.stack(robust_points, axis=0)
+
+
+def estimate_calib_poses_from_triangulation(
+    all_calib_uvs, all_extrinsics, all_intrinsics, calib_objpoints
+):
+    """
+    Estimate calibration object poses in world coordinates using triangulation.
+
+    For each frame, this function triangulates the 3D positions of calibration
+    points in world coordinates from their detections across multiple cameras,
+    then computes the rigid transform that maps canonical calibration object
+    points to the triangulated world points.
+
+    Parameters
+    ----------
+    all_calib_uvs : array of shape (n_cameras, n_frames, N, 2)
+        Calibration point detections for all frames and cameras.
+        NaNs indicate missing detections.
+
+    all_extrinsics : array of shape (n_cameras, 6)
+        Transforms from world coordinates to each camera's coordinates.
+
+    all_intrinsics : list of tuples (camera_matrix, dist_coefs)
+        Camera intrinsics for each camera.
+
+    calib_objpoints : array of shape (N, 3)
+        3D coordinates of calibration points in canonical/reference frame.
+
+    Returns
+    -------
+    calib_poses : array of shape (n_frames, 6)
+        Calibration object poses in world coordinates (rigid transforms from
+        canonical to world). Frames that cannot be triangulated (e.g., observed
+        by fewer than 2 cameras or with fewer than 3 valid points) are set to NaN.
+    """
+    n_cameras, n_frames, N, _ = all_calib_uvs.shape
+    calib_poses = np.zeros((n_frames, 6)) * np.nan
+
+    for frame_ix in range(n_frames):
+        frame_uvs = [all_calib_uvs[cam_ix, frame_ix] for cam_ix in range(n_cameras)]
+
+        world_points = triangulate(frame_uvs, all_extrinsics, all_intrinsics)
+
+        valid_mask = ~np.isnan(world_points).any(axis=-1)
+        n_valid = valid_mask.sum()
+
+        if n_valid >= 3:
+            valid_world_points = world_points[valid_mask]
+            valid_objpoints = calib_objpoints[valid_mask]
+
+            transform, rmsd = rigid_transform_from_correspondences(
+                source_points=valid_objpoints,
+                target_points=valid_world_points
+            )
+            calib_poses[frame_ix] = transform
+
+    return calib_poses
+
